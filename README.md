@@ -8,7 +8,7 @@ Proposed API overview:
     // up, down, left and right are self-explanatory, actions contains four
     //  different inputs that are game specific, e.g. jump or fire.
     typedef struct input_s {
-        float up, down, left, right
+        float up, down, left, right;
         float actions[4];
     } input_t;
 
