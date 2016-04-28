@@ -16,7 +16,7 @@ typedef struct input_s {
 
 typedef struct game_s game_t;
 typedef struct game_s {
-  const int screen_width, screen_height;
+  const uint32_t screen_width, screen_height;
   const float* screen;
   const int32_t score;
   const bool game_over;

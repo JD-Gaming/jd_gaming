@@ -10,7 +10,7 @@ LDFLAGS = \
 
 all: game
 
-game: player.o mygame.o
+game: player.o mygame.o $(LIBDIR)/libcanvas.a
 	echo "[LD] $@"
 	${GCC} $(CCFLAGS) $^ $(LDFLAGS) -o $@
 

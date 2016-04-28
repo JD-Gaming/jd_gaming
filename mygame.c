@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <string.h>
 
 #define SCREEN_WIDTH 640
 #define SCREEN_HEIGHT 480
@@ -15,6 +16,7 @@
 #define PADDLE_HEIGHT 10
 
 #define BALL_SIZE 10
+#define BALL_SPEED 4
 
 typedef struct coords_s {
   float x, y;
@@ -31,7 +33,9 @@ typedef struct game_state_s {
 
   // Add more stuff here, obv
   int counter;
+
   coords_t player_pos;
+  float    player_speed;
 
   coords_t ball_pos;
   coords_t ball_direction; // Not true coordinates, use as a vector
@@ -41,23 +45,26 @@ typedef struct game_state_s {
 } game_state_t;
 
 typedef struct local_game_s {
-  int screen_width, screen_height;
+  uint32_t screen_width, screen_height;
   float* screen;
   int32_t score;
   bool game_over;
-  
+
   // Sends a new input to the game and requests a new state to be written
   //  into <game>.
   void (*_update)(game_t* game, input_t input);
 
   // Local stuff here
   void* _internal_game_state;
+  uint32_t max_rounds;
 } local_game_t;
 
 void drawGame(local_game_t *game)
 {
   assert(game);
   game_state_t *state = (game_state_t*)game->_internal_game_state;
+
+  bzero( game->screen, sizeof(float) * game->screen_width * game->screen_height );
 
   int i;
   int x, y;
@@ -97,12 +104,44 @@ void updateMyGame(game_t *game, input_t input)
   local_game_t *l_game = (local_game_t*)game;
   game_state_t *state = l_game->_internal_game_state;
 
-  if (state->counter++ > 50) {
+  state->ball_pos.x += state->ball_direction.x;
+  state->ball_pos.y += state->ball_direction.y;
+
+  int b;
+  for (b = 0; b < state->num_blocks; b++) {
+    if (state->blocks[b].health <= 0) {
+      continue;
+    }
+
+    // Intersecting a block
+    if ((state->ball_pos.x + BALL_SIZE >= state->blocks[b].top_left.x &&
+	 state->ball_pos.x < state->blocks[b].top_left.x + BLOCK_WIDTH) &&
+	(state->ball_pos.y + BALL_SIZE >= state->blocks[b].top_left.y &&
+	 state->ball_pos.y < state->blocks[b].top_left.y + BLOCK_HEIGHT)) {
+      state->blocks[b].health -= 20;
+
+      // If block still alive, bounce here and stop looking through blocks
+      // ...
+
+      // If block died, continue in the same direction
+    }
+  }
+
+  if ((state->ball_pos.x <= 0) ||
+      (state->ball_pos.x + BALL_SIZE >= game->screen_width - 1))
+    state->ball_direction.x = -state->ball_direction.x;
+  if ((state->ball_pos.y <= 0) ||
+      (state->ball_pos.y + BALL_SIZE >= game->screen_height - 1))
+    state->ball_direction.y = -state->ball_direction.y;
+
+  drawGame(l_game);
+
+  if (state->counter++ > l_game->max_rounds) {
     l_game->game_over = true;
   }
 }
 
-game_t *createMyGame( void )
+game_t *createMyGame( uint32_t max_rounds )
 {
   local_game_t *tmp = malloc(sizeof(local_game_t));
   game_state_t *state=NULL;
@@ -132,16 +171,18 @@ game_t *createMyGame( void )
   tmp->game_over = false;
   tmp->_update = updateMyGame;
   tmp->_internal_game_state = state;
+  tmp->max_rounds = max_rounds;
 
   // Set up player
   state->player_pos.x = (SCREEN_WIDTH - PADDLE_WIDTH) / 2;
   state->player_pos.y = SCREEN_HEIGHT - PADDLE_HEIGHT*2;
+  state->player_speed = 0;
 
   // Set up ball
   state->ball_pos.x = (SCREEN_WIDTH - BALL_SIZE) / 2;
   state->ball_pos.y = SCREEN_HEIGHT / 2;
-  state->ball_direction.x = 0;
-  state->ball_direction.y = 4;
+  state->ball_direction.x = BALL_SPEED;
+  state->ball_direction.y = -BALL_SPEED;
 
   // Generate blocks
   state->num_blocks = 4 * 12;

@@ -13,7 +13,7 @@ void update(game_t* game, input_t input) {
 int main( void )
 {
   Canvas *c;
-  game_t *game = createMyGame();
+  game_t *game = createMyGame( 1000 );
   input_t inputs = {0, };
 
   if (game == NULL) {
@@ -24,19 +24,23 @@ int main( void )
   canvasInit();
   c = canvasCreate( game->screen_width, game->screen_height, RGB_888 );
   
+  char filename[50];
+
+  int count = 0;
+
   while (game->game_over == false) {
     int x, y;
-
     for (y = 0; y < game->screen_height; y++) {
       for (x = 0; x < game->screen_width; x++) {
 	uint8_t col = (uint8_t)round( game->screen[y * game->screen_width + x] * 0xff );
 	canvasSetRGB( c, x, y, col, col, col );
       }
     }
-
     update( game, inputs );
+
+    snprintf( filename, 50, "game_%010d.jpg", count++ );
+    canvasSaveJpeg( c, filename, 255 );
   }
   
-  canvasSaveJpeg( c, "game.jpg", 255 );
   return 0;
 }
