@@ -14,9 +14,13 @@
 
 #define PADDLE_WIDTH 40
 #define PADDLE_HEIGHT 10
+#define PADDLE_MAX_SPEED 15
 
 #define BALL_SIZE 10
 #define BALL_SPEED 4
+
+#define min(__a__, __b__) ((__a__) < (__b__) ? (__a__) : (__b__))
+#define max(__a__, __b__) ((__a__) > (__b__) ? (__a__) : (__b__))
 
 typedef struct coords_s {
   float x, y;
@@ -56,7 +60,7 @@ typedef struct local_game_s {
 
   // Local stuff here
   void* _internal_game_state;
-  uint32_t max_rounds;
+  int32_t max_rounds;
 } local_game_t;
 
 void drawGame(local_game_t *game)
@@ -104,20 +108,38 @@ void updateMyGame(game_t *game, input_t input)
   local_game_t *l_game = (local_game_t*)game;
   game_state_t *state = l_game->_internal_game_state;
 
+  // Update player position
+  state->player_pos.x += min(max(input.right, 0.0), 1.0) * PADDLE_MAX_SPEED;
+  state->player_pos.x -= min(max(input.left, 0.0), 1.0) * PADDLE_MAX_SPEED;
+  if (state->player_pos.x < 0) {
+    state->player_pos.x = 0;
+  }
+  if (state->player_pos.x >= game->screen_width - PADDLE_WIDTH) {
+    state->player_pos.x = game->screen_width - PADDLE_WIDTH - 1;
+  }
+
+  // Update ball position
   state->ball_pos.x += state->ball_direction.x;
   state->ball_pos.y += state->ball_direction.y;
 
+  // Figure out if anything's happened with the blocks this round
   int b;
   for (b = 0; b < state->num_blocks; b++) {
+    // Ignore dead blocks obviously
     if (state->blocks[b].health <= 0) {
       continue;
     }
 
     // Intersecting a block
+    // TODO: replace this with a function taking a block and
+    //  two ball positions to make sure a fast ball can't jump beyond a block
     if ((state->ball_pos.x + BALL_SIZE >= state->blocks[b].top_left.x &&
 	 state->ball_pos.x < state->blocks[b].top_left.x + BLOCK_WIDTH) &&
 	(state->ball_pos.y + BALL_SIZE >= state->blocks[b].top_left.y &&
 	 state->ball_pos.y < state->blocks[b].top_left.y + BLOCK_HEIGHT)) {
+
+      // TODO: Replace the magic number, possibly with a function taking
+      //  time since last bounce into account
       state->blocks[b].health -= 20;
 
       // If block still alive, bounce here and stop looking through blocks
@@ -127,21 +149,27 @@ void updateMyGame(game_t *game, input_t input)
     }
   }
 
+  // Bounce on walls
   if ((state->ball_pos.x <= 0) ||
       (state->ball_pos.x + BALL_SIZE >= game->screen_width - 1))
     state->ball_direction.x = -state->ball_direction.x;
-  if ((state->ball_pos.y <= 0) ||
-      (state->ball_pos.y + BALL_SIZE >= game->screen_height - 1))
+  if ((state->ball_pos.y <= 0))
     state->ball_direction.y = -state->ball_direction.y;
+
+  // Die at the bottom
+  if (state->ball_pos.y + BALL_SIZE >= game->screen_height - 1)
+    l_game->game_over = true;
 
   drawGame(l_game);
 
-  if (state->counter++ > l_game->max_rounds) {
+  state->counter++;
+  if ( l_game->max_rounds != -1 &&
+       state->counter > l_game->max_rounds ) {
     l_game->game_over = true;
   }
 }
 
-game_t *createMyGame( uint32_t max_rounds )
+game_t *createMyGame( int32_t max_rounds )
 {
   local_game_t *tmp = malloc(sizeof(local_game_t));
   game_state_t *state=NULL;

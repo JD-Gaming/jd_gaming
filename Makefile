@@ -1,8 +1,8 @@
-GCC=gcc -g -Wall
+GCC=gcc
 
 LIBDIR=libs
 
-CCFLAGS = -g \
+CCFLAGS = -g -Wall -O3 \
 	-I$(LIBDIR)
 
 LDFLAGS = \
@@ -22,3 +22,8 @@ mygame.o: mygame.c mygame.h game.h
 	echo "[CC] $@"
 	${GCC} $(CCFLAGS) -c $<
 
+clean:
+	echo "[RM] $^"
+	-rm *.o game
+
+.SILENT:
