@@ -1,4 +1,4 @@
-#include "mygame.h"
+#include "arkanoid.h"
 
 #include <stdio.h>
 #include <stdint.h>
@@ -172,7 +172,7 @@ void hit( local_game_t *l_game, int block )
   l_game->score += 1;
 }
 
-void updateMyGame(game_t *game, input_t input)
+void updateArkanoid(game_t *game, input_t input)
 {
   assert(game);
   local_game_t *l_game = (local_game_t*)game;
@@ -240,9 +240,6 @@ void updateMyGame(game_t *game, input_t input)
 
   // Bounce on paddle
   direction_t bounce_direction = intersects( l_game, -1, last_ball_pos, state->ball_pos, state->player_pos, PADDLE_WIDTH, PADDLE_HEIGHT );
-  if( bounce_direction != direction_none )
-    printf( "Bounce: %d\n", bounce_direction );
-
   if( bounce_direction == direction_down ) {
     state->ball_direction.y = -state->ball_direction.y;
   }
@@ -256,7 +253,7 @@ void updateMyGame(game_t *game, input_t input)
   }
 }
 
-game_t *createMyGame( int32_t max_rounds )
+game_t *createArkanoid( int32_t max_rounds )
 {
   local_game_t *tmp = malloc(sizeof(local_game_t));
   game_state_t *state=NULL;
@@ -284,7 +281,7 @@ game_t *createMyGame( int32_t max_rounds )
   tmp->screen = pixels;
   tmp->score = 0;
   tmp->game_over = false;
-  tmp->_update = updateMyGame;
+  tmp->_update = updateArkanoid;
   tmp->_internal_game_state = state;
   tmp->max_rounds = max_rounds;
 
@@ -320,7 +317,7 @@ game_t *createMyGame( int32_t max_rounds )
   return (game_t*)tmp;
 }
 
-void destroyGame( game_t *game )
+void destroyArkanoid( game_t *game )
 {
   if (game) {
     local_game_t *l_game = (local_game_t*)game;

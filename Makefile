@@ -10,15 +10,15 @@ LDFLAGS = \
 
 all: game
 
-game: player.o mygame.o $(LIBDIR)/libcanvas.a
+game: player.o arkanoid.o $(LIBDIR)/libcanvas.a
 	echo "[LD] $@"
 	${GCC} $(CCFLAGS) $^ $(LDFLAGS) -o $@
 
-player.o: player.c mygame.h game.h
+player.o: player.c arkanoid.h game.h
 	echo "[CC] $@"
 	${GCC} $(CCFLAGS) -c $<
 
-mygame.o: mygame.c mygame.h game.h
+arkanoid.o: arkanoid.c arkanoid.h game.h
 	echo "[CC] $@"
 	${GCC} $(CCFLAGS) -c $<
 

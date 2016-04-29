@@ -4,7 +4,7 @@
 #include <stdbool.h>
 #include <math.h>
 
-#include "mygame.h"
+#include "arkanoid.h"
 #include "canvas.h"
 
 #define DRAW_IMAGES 1
@@ -15,7 +15,7 @@ void update(game_t* game, input_t input) {
 
 int main( void )
 {
-  game_t *game = createMyGame( -1 );
+  game_t *game = createArkanoid( -1 );
   input_t inputs = {0, };
 
   if (game == NULL) {
@@ -67,6 +67,8 @@ int main( void )
 
     count++;
   }
+
+  destroyArkanoid(game);
   
   return 0;
 }
