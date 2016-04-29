@@ -78,8 +78,8 @@ direction_t intersects(local_game_t *game, int block, coords_t last_pos, coords_
 {
   // We know that the angle can't be low enough to go entirely sideways, so !up = down, but !left != right.
   int up_down, left_right;
-  up_down = (last_pos.y - next_pos.y);
-  left_right = (last_pos.x - next_pos.x);
+  up_down = (int)(last_pos.y - next_pos.y);
+  left_right = (int)(last_pos.x - next_pos.x);
 
   // Up and down check
   if (up_down > 0) {
@@ -131,7 +131,7 @@ void drawGame(local_game_t *game)
   assert(game);
   game_state_t *state = (game_state_t*)game->_internal_game_state;
 
-  bzero( game->screen, sizeof(float) * game->screen_width * game->screen_height );
+  memset( game->screen, 0, sizeof(float) * game->screen_width * game->screen_height );
 
   int i;
   int x, y;
@@ -158,8 +158,8 @@ void drawGame(local_game_t *game)
 
   int ball_top = state->ball_pos.y;
   int ball_left = state->ball_pos.x;
-  for (y = ball_top; y < ball_top + BALL_SIZE; y++) {
-    for (x = ball_left; x < ball_left + BALL_SIZE; x++) {
+  for (y = ball_top; y < ball_top + BALL_SIZE && y < game->screen_height; y++) {
+	  for (x = ball_left; x < ball_left + BALL_SIZE && x < game->screen_width; x++) {
       game->screen[y * game->screen_width + x] = 0.5;
     }
   }

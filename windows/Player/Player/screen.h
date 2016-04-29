@@ -3,6 +3,7 @@
 
 #include <Windows.h>
 #include <gl/gl.h>
+#include <stdint.h>
 
 class Screen {
 public:
@@ -12,7 +13,7 @@ public:
 	// Swap buffer and update the screen
 	void swap(void);
 
-	unsigned char *pixels;
+	uint32_t *pixels;
 
 private:
 	WNDCLASSEX wc;

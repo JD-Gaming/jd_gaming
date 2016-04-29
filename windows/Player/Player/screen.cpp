@@ -7,7 +7,7 @@ Screen::Screen(unsigned int width, unsigned int height, const char *title) :
 	w(width),
 	h(height)
 {
-	pixels = new unsigned char[width * height];
+	pixels = new uint32_t[width * height];
 	memset(&wc, 0, sizeof(wc));
 	wc.lpfnWndProc = DefWindowProc;
 	wc.style = CS_CLASSDC;
