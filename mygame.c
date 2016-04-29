@@ -1,5 +1,6 @@
 #include "mygame.h"
 
+#include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <assert.h>
@@ -19,6 +20,9 @@
 #define BALL_SIZE 10
 #define BALL_SPEED 4
 
+#define BLOCK_ROWS 4
+#define BLOCK_COLS 12
+
 #define min(__a__, __b__) ((__a__) < (__b__) ? (__a__) : (__b__))
 #define max(__a__, __b__) ((__a__) > (__b__) ? (__a__) : (__b__))
 
@@ -33,7 +37,6 @@ typedef struct block_s {
 
 typedef struct game_state_s {
   float *pixels;
-  int32_t score;
 
   // Add more stuff here, obv
   int counter;
@@ -62,6 +65,66 @@ typedef struct local_game_s {
   void* _internal_game_state;
   int32_t max_rounds;
 } local_game_t;
+
+typedef enum direction_e {
+  direction_none,
+  direction_up,
+  direction_down,
+  direction_left,
+  direction_right
+} direction_t;
+
+direction_t intersects(local_game_t *game, int block, coords_t last_pos, coords_t next_pos, coords_t block_pos, uint32_t width, uint32_t height)
+{
+  // We know that the angle can't be low enough to go entirely sideways, so !up = down, but !left != right.
+  int up_down, left_right;
+  up_down = (last_pos.y - next_pos.y);
+  left_right = (last_pos.x - next_pos.x);
+
+  // Up and down check
+  if (up_down > 0) {
+    // Going up
+    if (// Top of ball was lower than bottom of block
+	(last_pos.y >= block_pos.y + height) &&
+	// Top of ball is higher than bottom of block
+	(next_pos.y < block_pos.y + height) &&
+	// Ball is within the width of the block
+	(next_pos.x < block_pos.x + width) &&
+	(next_pos.x + BALL_SIZE >= block_pos.x)) {
+      return direction_up;
+    }
+  } else {
+    // Going down
+    if (// Bottom of ball was higher than top of block
+	// There might be a = missing somewhere here, test when a ball actually bounces on top
+	(last_pos.y + BALL_SIZE < block_pos.y) &&
+	// Bottom of ball is lower than top of block
+	(next_pos.y + BALL_SIZE > block_pos.y) &&
+	// Ball is within the width of the block
+	(next_pos.x < block_pos.x + width) &&
+	(next_pos.x + BALL_SIZE >= block_pos.x)) {
+      return direction_down;
+    }
+  }
+
+  if (left_right > 0) {
+    // Going left
+  } else if (left_right < 0) {
+    // Going right
+  } else {
+    // Going straight up or down
+  }
+
+  // Temporary check, to be replaced
+  if ((next_pos.x + BALL_SIZE >= block_pos.x &&
+       next_pos.x < block_pos.x + width) &&
+      (next_pos.y + BALL_SIZE >= block_pos.y &&
+       next_pos.y < block_pos.y + height)) {
+    return direction_left;
+  }
+
+  return direction_none;
+}
 
 void drawGame(local_game_t *game)
 {
@@ -102,6 +165,13 @@ void drawGame(local_game_t *game)
   }
 }
 
+void hit( local_game_t *l_game, int block )
+{
+  game_state_t *state = l_game->_internal_game_state;
+  state->blocks[block].health -= 20;
+  l_game->score += 1;
+}
+
 void updateMyGame(game_t *game, input_t input)
 {
   assert(game);
@@ -119,6 +189,7 @@ void updateMyGame(game_t *game, input_t input)
   }
 
   // Update ball position
+  coords_t last_ball_pos = state->ball_pos;
   state->ball_pos.x += state->ball_direction.x;
   state->ball_pos.y += state->ball_direction.y;
 
@@ -131,21 +202,28 @@ void updateMyGame(game_t *game, input_t input)
     }
 
     // Intersecting a block
-    // TODO: replace this with a function taking a block and
-    //  two ball positions to make sure a fast ball can't jump beyond a block
-    if ((state->ball_pos.x + BALL_SIZE >= state->blocks[b].top_left.x &&
-	 state->ball_pos.x < state->blocks[b].top_left.x + BLOCK_WIDTH) &&
-	(state->ball_pos.y + BALL_SIZE >= state->blocks[b].top_left.y &&
-	 state->ball_pos.y < state->blocks[b].top_left.y + BLOCK_HEIGHT)) {
-
-      // TODO: Replace the magic number, possibly with a function taking
-      //  time since last bounce into account
-      state->blocks[b].health -= 20;
-
-      // If block still alive, bounce here and stop looking through blocks
-      // ...
-
+    direction_t bounce_direction = intersects( l_game, b, last_ball_pos, state->ball_pos, state->blocks[b].top_left, BLOCK_WIDTH, BLOCK_HEIGHT);
+    if (bounce_direction != direction_none) {
+      // If block still alive, bounce
       // If block died, continue in the same direction
+      switch (bounce_direction) {
+      case direction_up:
+      case direction_down:
+	// TODO: Replace the magic number, possibly with a function taking
+	//  time since last bounce into account
+	hit( l_game, b );
+	if( state->blocks[b].health > 0 )
+	  state->ball_direction.y = -state->ball_direction.y;
+	break;
+
+      default: // Sideways
+	//state->blocks[b].health -= 20;
+	hit( l_game, b );
+	if( state->blocks[b].health > 0 )
+	  state->ball_direction.x = -state->ball_direction.x;
+	break;
+      }
+
     }
   }
 
@@ -159,6 +237,15 @@ void updateMyGame(game_t *game, input_t input)
   // Die at the bottom
   if (state->ball_pos.y + BALL_SIZE >= game->screen_height - 1)
     l_game->game_over = true;
+
+  // Bounce on paddle
+  direction_t bounce_direction = intersects( l_game, -1, last_ball_pos, state->ball_pos, state->player_pos, PADDLE_WIDTH, PADDLE_HEIGHT );
+  if( bounce_direction != direction_none )
+    printf( "Bounce: %d\n", bounce_direction );
+
+  if( bounce_direction == direction_down ) {
+    state->ball_direction.y = -state->ball_direction.y;
+  }
 
   drawGame(l_game);
 
@@ -201,6 +288,8 @@ game_t *createMyGame( int32_t max_rounds )
   tmp->_internal_game_state = state;
   tmp->max_rounds = max_rounds;
 
+  state->counter = 0;
+
   // Set up player
   state->player_pos.x = (SCREEN_WIDTH - PADDLE_WIDTH) / 2;
   state->player_pos.y = SCREEN_HEIGHT - PADDLE_HEIGHT*2;
@@ -209,19 +298,19 @@ game_t *createMyGame( int32_t max_rounds )
   // Set up ball
   state->ball_pos.x = (SCREEN_WIDTH - BALL_SIZE) / 2;
   state->ball_pos.y = SCREEN_HEIGHT / 2;
-  state->ball_direction.x = BALL_SPEED;
+  state->ball_direction.x = 2;
   state->ball_direction.y = -BALL_SPEED;
 
   // Generate blocks
-  state->num_blocks = 4 * 12;
+  state->num_blocks = BLOCK_ROWS * BLOCK_COLS;
   state->blocks = malloc( sizeof(block_t) * state->num_blocks );
 
   int row, col;
-  for (row = 0; row < 4; row++) {
-    for (col = 0; col < 12; col++ ) {
-      state->blocks[row * 12 + col].top_left.y = BLOCK_MARGIN + row * (BLOCK_HEIGHT + BLOCK_MARGIN);
-      state->blocks[row * 12 + col].top_left.x = BLOCK_MARGIN + col * (BLOCK_WIDTH + BLOCK_MARGIN);
-      state->blocks[row * 12 + col].health = 100;
+  for (row = 0; row < BLOCK_ROWS; row++) {
+    for (col = 0; col < BLOCK_COLS; col++ ) {
+      state->blocks[row * BLOCK_COLS + col].top_left.y = BLOCK_MARGIN + row * (BLOCK_HEIGHT + BLOCK_MARGIN);
+      state->blocks[row * BLOCK_COLS + col].top_left.x = BLOCK_MARGIN + col * (BLOCK_WIDTH + BLOCK_MARGIN);
+      state->blocks[row * BLOCK_COLS + col].health = 100;
     }
   }
 

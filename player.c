@@ -44,6 +44,7 @@ int main( void )
 #endif
 
     // Add AI here
+    /*
     inputs.up = rand() / (float)RAND_MAX;
     inputs.down = rand() / (float)RAND_MAX;
     inputs.left = rand() / (float)RAND_MAX;
@@ -53,14 +54,18 @@ int main( void )
     for (i = 0; i < sizeof(inputs.actions)/sizeof(inputs.actions[0]); i++) {
       inputs.actions[i] = rand() / (float)RAND_MAX;
     }
+    */
+    inputs.right = 1.0;
 
     // Send input to game
     update( game, inputs );
 
 #ifdef DRAW_IMAGES
-    snprintf( filename, 50, "game_%010d.jpg", count++ );
+    snprintf( filename, 50, "game_%010d.jpg", count );
     canvasSaveJpeg( c, filename, 255 );
 #endif
+
+    count++;
   }
   
   return 0;
