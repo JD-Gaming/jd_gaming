@@ -11,13 +11,13 @@
 #endif
 
 typedef struct point_s {
-  float x;
-  float y;
+	float x;
+	float y;
 } point_t;
 
 typedef struct line_s {
-  point_t p1;
-  point_t p2;
+	point_t p1;
+	point_t p2;
 } line_t;
 
 // True if lines intersect, even if not within the line segments
