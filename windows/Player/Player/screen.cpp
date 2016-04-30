@@ -1,11 +1,18 @@
+#undef WIN32_LEAN_AND_MEAN
+#include <Windows.h>
+
 #include "screen.h"
 
-#include <Windows.h>
+//#include <TimeAPI.h>
+//#include <mmsystem.h>
 #include <gl/gl.h>
+#include <stdint.h>
 
-Screen::Screen(unsigned int width, unsigned int height, const char *title) :
+Screen::Screen(const uint32_t width, const uint32_t height, const char *title) :
 	w(width),
-	h(height)
+	h(height),
+	fps(0.0),
+	frameCount(0)
 {
 	pixels = new uint32_t[width * height];
 	memset(&wc, 0, sizeof(wc));
@@ -28,6 +35,9 @@ Screen::Screen(unsigned int width, unsigned int height, const char *title) :
 	glEnable(GL_TEXTURE_2D);
 	glBindTexture(GL_TEXTURE_2D, backbuffer);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+
+	QueryPerformanceFrequency(&perfFrequency);
+	QueryPerformanceCounter(&previousTime);
 }
 
 Screen::~Screen()
@@ -55,4 +65,29 @@ void Screen::swap(void)
 		DispatchMessage(&msg);
 	}
 
+	calculateFps();
+}
+
+float Screen::getFps(void)
+{
+	return fps;
+}
+
+void Screen::calculateFps(void)
+{
+	LARGE_INTEGER currentTime;
+	QueryPerformanceCounter(&currentTime);
+
+	LARGE_INTEGER elapsedMicroseconds;
+	elapsedMicroseconds.QuadPart = currentTime.QuadPart - previousTime.QuadPart;
+	elapsedMicroseconds.QuadPart *= 1000000;
+	elapsedMicroseconds.QuadPart /= perfFrequency.QuadPart;
+
+	frameCount++;
+	// Calculate once per second
+	if (elapsedMicroseconds.QuadPart >= 1000000) {
+		fps = (float)(frameCount / (elapsedMicroseconds.QuadPart / 1000000.0));
+		previousTime = currentTime;
+		frameCount = 0;
+	}
 }

@@ -23,8 +23,12 @@
 #define BLOCK_ROWS 4
 #define BLOCK_COLS 12
 
-#define min(__a__, __b__) ((__a__) < (__b__) ? (__a__) : (__b__))
-#define max(__a__, __b__) ((__a__) > (__b__) ? (__a__) : (__b__))
+#ifndef min
+#  define min(__a__, __b__) ((__a__) < (__b__) ? (__a__) : (__b__))
+#endif
+#ifndef max
+#  define max(__a__, __b__) ((__a__) > (__b__) ? (__a__) : (__b__))
+#endif
 
 typedef struct coords_s {
   float x, y;
@@ -137,29 +141,29 @@ void drawGame(local_game_t *game)
   int x, y;
   for (i = 0; i < state->num_blocks; i++) {
     if (state->blocks[i].health > 0) {
-      int block_top = state->blocks[i].top_left.y;
-      int block_left = state->blocks[i].top_left.x;
+      int block_top = (int)state->blocks[i].top_left.y;
+      int block_left = (int)state->blocks[i].top_left.x;
       for (y = block_top; y < block_top + BLOCK_HEIGHT; y++) {
-	for (x = block_left; x < block_left + BLOCK_WIDTH; x++) {
-	  game->screen[y * game->screen_width + x] =
-	    state->blocks[i].health / 100.0;
-	}
+		for (x = block_left; x < block_left + BLOCK_WIDTH; x++) {
+		  game->screen[y * game->screen_width + x] =
+	      (float)(state->blocks[i].health / 100.0);
+        }
       }
     }
   }
 
-  int player_top = state->player_pos.y;
-  int player_left = state->player_pos.x;
+  int player_top = (int)state->player_pos.y;
+  int player_left = (int)state->player_pos.x;
   for (y = player_top; y < player_top + PADDLE_HEIGHT; y++) {
     for (x = player_left; x < player_left + PADDLE_WIDTH; x++) {
       game->screen[y * game->screen_width + x] = 0.75;
     }
   }
 
-  int ball_top = state->ball_pos.y;
-  int ball_left = state->ball_pos.x;
-  for (y = ball_top; y < ball_top + BALL_SIZE && y < game->screen_height; y++) {
-	  for (x = ball_left; x < ball_left + BALL_SIZE && x < game->screen_width; x++) {
+  int ball_top = (int)state->ball_pos.y;
+  int ball_left = (int)state->ball_pos.x;
+  for (y = ball_top; y < ball_top + BALL_SIZE && y < (int)game->screen_height; y++) {
+	  for (x = ball_left; x < ball_left + BALL_SIZE && x < (int)game->screen_width; x++) {
       game->screen[y * game->screen_width + x] = 0.5;
     }
   }
@@ -179,13 +183,13 @@ void updateArkanoid(game_t *game, input_t input)
   game_state_t *state = l_game->_internal_game_state;
 
   // Update player position
-  state->player_pos.x += min(max(input.right, 0.0), 1.0) * PADDLE_MAX_SPEED;
-  state->player_pos.x -= min(max(input.left, 0.0), 1.0) * PADDLE_MAX_SPEED;
+  state->player_pos.x += (float)min(max(input.right, 0.0), 1.0) * PADDLE_MAX_SPEED;
+  state->player_pos.x -= (float)min(max(input.left, 0.0), 1.0) * PADDLE_MAX_SPEED;
   if (state->player_pos.x < 0) {
     state->player_pos.x = 0;
   }
   if (state->player_pos.x >= game->screen_width - PADDLE_WIDTH) {
-    state->player_pos.x = game->screen_width - PADDLE_WIDTH - 1;
+    state->player_pos.x = (float)game->screen_width - PADDLE_WIDTH - 1;
   }
 
   // Update ball position
@@ -305,8 +309,8 @@ game_t *createArkanoid( int32_t max_rounds )
   int row, col;
   for (row = 0; row < BLOCK_ROWS; row++) {
     for (col = 0; col < BLOCK_COLS; col++ ) {
-      state->blocks[row * BLOCK_COLS + col].top_left.y = BLOCK_MARGIN + row * (BLOCK_HEIGHT + BLOCK_MARGIN);
-      state->blocks[row * BLOCK_COLS + col].top_left.x = BLOCK_MARGIN + col * (BLOCK_WIDTH + BLOCK_MARGIN);
+      state->blocks[row * BLOCK_COLS + col].top_left.y = (float)BLOCK_MARGIN + row * (BLOCK_HEIGHT + BLOCK_MARGIN);
+      state->blocks[row * BLOCK_COLS + col].top_left.x = (float)BLOCK_MARGIN + col * (BLOCK_WIDTH + BLOCK_MARGIN);
       state->blocks[row * BLOCK_COLS + col].health = 100;
     }
   }

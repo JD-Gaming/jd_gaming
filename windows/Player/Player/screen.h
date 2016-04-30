@@ -7,12 +7,18 @@
 
 class Screen {
 public:
-	Screen(const unsigned int width, const unsigned int height, const char *title=NULL);
+	Screen(const uint32_t width, const uint32_t height, const char *title=NULL);
 	~Screen();
+
+	const uint32_t getWidth(void);
+	const uint32_t getHeight(void);
+
+	float getFps(void);
 
 	// Swap buffer and update the screen
 	void swap(void);
 
+	// This is an ugly hack to be able to write quickly to the frame buffer
 	uint32_t *pixels;
 
 private:
@@ -22,8 +28,17 @@ private:
 	HGLRC ctx;
 	GLuint backbuffer;
 
-	unsigned int w;
-	unsigned int h;
+	uint32_t w;
+	uint32_t h;
+
+	float fps;
+	uint32_t frameCount;
+
+	LARGE_INTEGER perfFrequency;
+	LARGE_INTEGER previousTime;
+
+private:
+	void calculateFps(void);
 };
 
 #endif
