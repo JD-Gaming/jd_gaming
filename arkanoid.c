@@ -9,9 +9,9 @@
 #define SCREEN_WIDTH 640
 #define SCREEN_HEIGHT 480
 
-#define BLOCK_WIDTH 51
+#define BLOCK_WIDTH 64
 #define BLOCK_HEIGHT 15
-#define BLOCK_MARGIN 2
+#define BLOCK_MARGIN 1
 
 #define PADDLE_WIDTH 180
 #define PADDLE_HEIGHT 10
@@ -21,7 +21,7 @@
 #define BALL_SPEED 4
 
 #define BLOCK_ROWS 4
-#define BLOCK_COLS 12
+#define BLOCK_COLS 10
 
 #ifndef min
 #  define min(__a__, __b__) ((__a__) < (__b__) ? (__a__) : (__b__))
@@ -143,8 +143,8 @@ void drawGame(local_game_t *game)
     if (state->blocks[i].health > 0) {
       int block_top = (int)state->blocks[i].top_left.y;
       int block_left = (int)state->blocks[i].top_left.x;
-      for (y = block_top; y < block_top + BLOCK_HEIGHT; y++) {
-		for (x = block_left; x < block_left + BLOCK_WIDTH; x++) {
+      for (y = block_top + BLOCK_MARGIN; y < block_top + BLOCK_HEIGHT - BLOCK_MARGIN; y++) {
+		for (x = block_left + BLOCK_MARGIN; x < block_left + BLOCK_WIDTH - BLOCK_MARGIN; x++) {
 		  game->screen[y * game->screen_width + x] =
 	      (float)(state->blocks[i].health / 100.0);
         }
@@ -309,8 +309,8 @@ game_t *createArkanoid( int32_t max_rounds )
   int row, col;
   for (row = 0; row < BLOCK_ROWS; row++) {
     for (col = 0; col < BLOCK_COLS; col++ ) {
-      state->blocks[row * BLOCK_COLS + col].top_left.y = (float)BLOCK_MARGIN + row * (BLOCK_HEIGHT + BLOCK_MARGIN);
-      state->blocks[row * BLOCK_COLS + col].top_left.x = (float)BLOCK_MARGIN + col * (BLOCK_WIDTH + BLOCK_MARGIN);
+      state->blocks[row * BLOCK_COLS + col].top_left.y = (float)row * BLOCK_HEIGHT;
+	  state->blocks[row * BLOCK_COLS + col].top_left.x = (float)col * BLOCK_WIDTH;
       state->blocks[row * BLOCK_COLS + col].health = 100;
     }
   }
