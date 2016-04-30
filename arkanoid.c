@@ -6,6 +6,8 @@
 #include <assert.h>
 #include <string.h>
 
+#include "geometry.h"
+
 #define SCREEN_WIDTH 640
 #define SCREEN_HEIGHT 480
 
@@ -30,12 +32,8 @@
 #  define max(__a__, __b__) ((__a__) > (__b__) ? (__a__) : (__b__))
 #endif
 
-typedef struct coords_s {
-  float x, y;
-} coords_t;
-
 typedef struct block_s {
-  coords_t top_left;
+  point_t top_left;
   int      health;
 } block_t;
 
@@ -45,11 +43,11 @@ typedef struct game_state_s {
   // Add more stuff here, obv
   int counter;
 
-  coords_t player_pos;
+  point_t player_pos;
   float    player_speed;
 
-  coords_t ball_pos;
-  coords_t ball_direction; // Not true coordinates, use as a vector
+  point_t ball_pos;
+  point_t ball_direction; // Not true coordinates, use as a vector
 
   int num_blocks;
   block_t *blocks;
@@ -78,7 +76,7 @@ typedef enum direction_e {
   direction_right
 } direction_t;
 
-direction_t intersects(local_game_t *game, int block, coords_t last_pos, coords_t next_pos, coords_t block_pos, uint32_t width, uint32_t height)
+direction_t intersects(local_game_t *game, int block, point_t last_pos, point_t next_pos, point_t block_pos, uint32_t width, uint32_t height)
 {
   // We know that the angle can't be low enough to go entirely sideways, so !up = down, but !left != right.
   int up_down, left_right;
@@ -128,6 +126,32 @@ direction_t intersects(local_game_t *game, int block, coords_t last_pos, coords_
   }
 
   return direction_none;
+}
+
+void strikeBall(local_game_t *l_game, point_t ball, point_t direction, point_t paddle, uint32_t width)
+{
+	line_t ballLine = {
+		ball,
+		(point_t) {
+			ball.x + direction.x,
+				ball.y + direction.y + BALL_SIZE
+		}
+	};
+
+	line_t paddleLine = {
+		paddle,
+		(point_t) {
+			paddle.x + width,
+				paddle.y
+		}
+	};
+
+	point_t iPoint;
+	if (intersectSegment(ballLine, paddleLine, &iPoint)) {
+		game_state_t *state = l_game->_internal_game_state;
+		// Should do some nifty angle calculations here
+		state->ball_direction.y = -state->ball_direction.y;
+	}
 }
 
 void drawGame(local_game_t *game)
@@ -193,7 +217,7 @@ void updateArkanoid(game_t *game, input_t input)
   }
 
   // Update ball position
-  coords_t last_ball_pos = state->ball_pos;
+  point_t last_ball_pos = state->ball_pos;
   state->ball_pos.x += state->ball_direction.x;
   state->ball_pos.y += state->ball_direction.y;
 
@@ -245,9 +269,9 @@ void updateArkanoid(game_t *game, input_t input)
   // Bounce on paddle
   direction_t bounce_direction = intersects( l_game, -1, last_ball_pos, state->ball_pos, state->player_pos, PADDLE_WIDTH, PADDLE_HEIGHT );
   if( bounce_direction == direction_down ) {
-    state->ball_direction.y = -state->ball_direction.y;
+    strikeBall(l_game, last_ball_pos, state->ball_direction, state->player_pos, PADDLE_WIDTH);
   }
-
+  
   drawGame(l_game);
 
   state->counter++;
