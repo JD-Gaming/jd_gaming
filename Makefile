@@ -1,16 +1,27 @@
 GCC=gcc
-
 LIBDIR=libs
+
+OSNAME:=$(shell uname -s)
+ifeq ($(findstring CYGWIN,$(OSNAME)),CYGWIN)
+  EXT:=.exe
+else
+  EXT:=
+endif
 
 CCFLAGS = -g -Wall -O3 \
 	-I$(LIBDIR)
 
-LDFLAGS = \
-	-L$(LIBDIR) -lcanvas -lbmp -ljpeg -lm -lz -lpthread
+LDFLAGS = -L$(LIBDIR)
+ifeq ($(findstring CYGWIN,$(OSNAME)),CYGWIN)
+	LDFLAGS += -lcanvas_cyg -lbmp_cyg
+else
+	LDFLAGS += -lcanvas -lbmp
+endif
+LDFLAGS += -ljpeg -lm -lz -lpthread
 
-all: game
+all: game$(EXT)
 
-game: player.o arkanoid.o $(LIBDIR)/libcanvas.a
+game$(EXT): player.o arkanoid.o
 	echo "[LD] $@"
 	${GCC} $(CCFLAGS) $^ $(LDFLAGS) -o $@
 
@@ -24,6 +35,6 @@ arkanoid.o: arkanoid.c arkanoid.h game.h
 
 clean:
 	echo "[RM] $^"
-	-rm *.o game
+	-rm *.o game${EXT}
 
 .SILENT:
