@@ -13,7 +13,7 @@
 #define BLOCK_HEIGHT 15
 #define BLOCK_MARGIN 2
 
-#define PADDLE_WIDTH 40
+#define PADDLE_WIDTH 180
 #define PADDLE_HEIGHT 10
 #define PADDLE_MAX_SPEED 15
 

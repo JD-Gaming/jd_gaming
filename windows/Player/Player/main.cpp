@@ -41,6 +41,10 @@ int main() {
 		leftState = GetAsyncKeyState(VK_LEFT);
 		rightState = GetAsyncKeyState(VK_RIGHT);
 
+		if (GetAsyncKeyState(VK_SPACE)) {
+			screen.toggleVSync(true);
+		}
+
 		for (unsigned int y = 0; y < game->screen_height; y++) {
 			for (unsigned int x = 0; x < game->screen_width; x++) {
 				// Windows screens are upside down...

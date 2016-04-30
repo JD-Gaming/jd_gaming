@@ -12,7 +12,8 @@ Screen::Screen(const uint32_t width, const uint32_t height, const char *title) :
 	w(width),
 	h(height),
 	fps(0.0),
-	frameCount(0)
+	frameCount(0),
+	vsyncOn(false)
 {
 	pixels = new uint32_t[width * height];
 	memset(&wc, 0, sizeof(wc));
@@ -35,6 +36,8 @@ Screen::Screen(const uint32_t width, const uint32_t height, const char *title) :
 	glEnable(GL_TEXTURE_2D);
 	glBindTexture(GL_TEXTURE_2D, backbuffer);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+
+	toggleVSync(vsyncOn);
 
 	QueryPerformanceFrequency(&perfFrequency);
 	QueryPerformanceCounter(&previousTime);
@@ -90,4 +93,18 @@ void Screen::calculateFps(void)
 		previousTime = currentTime;
 		frameCount = 0;
 	}
+}
+
+bool Screen::getVSync(void)
+{
+	return vsyncOn;
+}
+void Screen::toggleVSync(bool on) {
+	vsyncOn = on;
+
+	typedef BOOL(WINAPI *PFNWGLSWAPINTERVALEXTPROC)(int interval);
+	PFNWGLSWAPINTERVALEXTPROC wglSwapIntervalEXT = NULL;
+	wglSwapIntervalEXT = (PFNWGLSWAPINTERVALEXTPROC)wglGetProcAddress("wglSwapIntervalEXT");
+	if (wglSwapIntervalEXT)
+		wglSwapIntervalEXT(vsyncOn);
 }
