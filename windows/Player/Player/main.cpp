@@ -35,14 +35,20 @@ int main() {
 	int upState = 0;
 	int downState = 0;
 
+	int count = 0;
+
 	while (GetAsyncKeyState(VK_ESCAPE) == 0 && game->game_over != true) {
 		leftState = GetAsyncKeyState(VK_LEFT);
 		rightState = GetAsyncKeyState(VK_RIGHT);
 
+		if (GetAsyncKeyState(VK_SPACE)) {
+			screen.toggleVSync(true);
+		}
+
 		for (unsigned int y = 0; y < game->screen_height; y++) {
 			for (unsigned int x = 0; x < game->screen_width; x++) {
 				// Windows screens are upside down...
-				uint32_t gVal = 0xff * game->screen[y * game->screen_width + x];
+				uint32_t gVal = (uint32_t)(0xff * game->screen[y * game->screen_width + x]);
 				uint32_t color = gVal | (gVal << 8) | (gVal << 16) | (gVal << 24);
 
 				screen.pixels[(game->screen_height - y - 1) * game->screen_width + x] = color;
@@ -59,6 +65,11 @@ int main() {
 
 		// Send input to game
 		game->_update(game, inputs);
+
+		if (!(count % 100)) {
+			fprintf(stderr, "Current fps: %f\n", screen.getFps());
+		}
+		count++;
 	}
 
 	return 0;
