@@ -156,8 +156,6 @@ void strikeBall(local_game_t *l_game, point_t ball, point_t direction, point_t p
 	if (intersectSegment(ballLine, paddleLine, &iPoint)) {
 		game_state_t *state = l_game->_internal_game_state;
 		float dist = (iPoint.x - paddleLine.p1.x) / PADDLE_WIDTH;
-		fprintf(stderr, "Intersect at point {%f, %f}\n", iPoint.x, iPoint.y);
-		fprintf(stderr, "Distance from middle: %f\n", dist);
 
 		if (ballLine.p1.x < ballLine.p2.x) {
 			// Going right
@@ -165,8 +163,6 @@ void strikeBall(local_game_t *l_game, point_t ball, point_t direction, point_t p
 
 			state->ball_direction.x = (float)cos(angle) * BALL_SPEED;
 			state->ball_direction.y = (float)sin(angle) * BALL_SPEED;
-
-			printf("Right, angle: %f, x: %f, y: %f\n", angle * 180 / 3.14159267, state->ball_direction.x, state->ball_direction.y );
 		}
 		else if (ballLine.p1.x > ballLine.p2.x) {
 			// Going left
@@ -174,8 +170,6 @@ void strikeBall(local_game_t *l_game, point_t ball, point_t direction, point_t p
 
 			state->ball_direction.x = (float)-cos(angle) * BALL_SPEED;
 			state->ball_direction.y = (float)sin(angle) * BALL_SPEED;
-
-			printf("Left, angle: %f, x: %f, y: %f\n", angle * 180 / 3.14159267, state->ball_direction.x, state->ball_direction.y);
 		}
 		else {
 			// Straight down
@@ -291,11 +285,18 @@ void updateArkanoid(game_t *game, input_t input)
 	}
 
 	// Bounce on walls
-	if ((state->ball_pos.x <= 0) ||
-		(state->ball_pos.x + BALL_SIZE >= game->screen_width - 1))
+	if (state->ball_pos.x <= 0) {
+		state->ball_pos.x = -state->ball_pos.x;
 		state->ball_direction.x = -state->ball_direction.x;
-	if ((state->ball_pos.y <= 0))
+	}
+	if (state->ball_pos.x + BALL_SIZE >= game->screen_width - 1) {
+		state->ball_pos.x = 2 * (game->screen_width - 1 - BALL_SIZE) - state->ball_pos.x;
+		state->ball_direction.x = -state->ball_direction.x;
+	}
+	if (state->ball_pos.y <= 0) {
+		state->ball_pos.y = -state->ball_pos.y;
 		state->ball_direction.y = -state->ball_direction.y;
+	}
 
 	// Die at the bottom
 	if (state->ball_pos.y + BALL_SIZE >= game->screen_height - 1)
