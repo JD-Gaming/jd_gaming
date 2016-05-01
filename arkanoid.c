@@ -34,7 +34,7 @@
 #define PADDLE_MAX_SPEED 15
 
 #define BALL_SIZE 10
-#define BALL_SPEED 7
+#define BALL_SPEED 5
 #define BALL_START_X ((SCREEN_WIDTH - BALL_SIZE) / 2)
 #define BALL_START_Y (PADDLE_Y_POS - BALL_SIZE)
 #define BALL_START_ANGLE (M_PI/3)
@@ -211,11 +211,11 @@ void drawGame(local_game_t *game)
 	memset(game->screen, 0, sizeof(float) * game->screen_width * game->screen_height);
 
 	int i;
-	int x, y;
+	uint32_t x, y;
 	for (i = 0; i < state->num_blocks; i++) {
 		if (state->blocks[i].health > 0) {
-			int block_top = (int)state->blocks[i].top_left.y;
-			int block_left = (int)state->blocks[i].top_left.x;
+			uint32_t block_top = (int)state->blocks[i].top_left.y;
+			uint32_t block_left = (int)state->blocks[i].top_left.x;
 			for (y = block_top + BLOCK_MARGIN; y < block_top + BLOCK_HEIGHT - BLOCK_MARGIN; y++) {
 				for (x = block_left + BLOCK_MARGIN; x < block_left + BLOCK_WIDTH - BLOCK_MARGIN; x++) {
 					game->screen[y * game->screen_width + x] =
@@ -225,16 +225,16 @@ void drawGame(local_game_t *game)
 		}
 	}
 
-	int player_top = (int)state->player_pos.y;
-	int player_left = (int)state->player_pos.x;
+	uint32_t player_top = (int)state->player_pos.y;
+	uint32_t player_left = (int)state->player_pos.x;
 	for (y = player_top; y < player_top + PADDLE_HEIGHT; y++) {
 		for (x = player_left; x < player_left + state->paddle_width; x++) {
 			game->screen[y * game->screen_width + x] = 0.75;
 		}
 	}
 
-	int ball_top = (int)state->ball_pos.y;
-	int ball_left = (int)state->ball_pos.x;
+	uint32_t ball_top = (int)state->ball_pos.y;
+	uint32_t ball_left = (int)state->ball_pos.x;
 	for (y = ball_top; y < ball_top + BALL_SIZE && y < (int)game->screen_height; y++) {
 		for (x = ball_left; x < ball_left + BALL_SIZE && x < (int)game->screen_width; x++) {
 			game->screen[y * game->screen_width + x] = 0.5;
@@ -275,6 +275,37 @@ bool areBlocksDead(game_state_t *state)
 	return true;
 }
 
+void blockCollision(local_game_t *l_game, game_state_t *state, point_t last_ball_pos, int block)
+{
+	// Ignore dead blocks obviously
+	if (state->blocks[block].health <= 0) {
+		return;
+	}
+
+	// Intersecting a block
+	direction_t bounce_direction = intersects(l_game, block, last_ball_pos, state->ball_pos, state->blocks[block].top_left, BLOCK_WIDTH, BLOCK_HEIGHT);
+	// If block still alive, bounce
+	// If block died, continue in the same direction
+	switch (bounce_direction) {
+	case direction_up:
+	case direction_down:
+		hit(l_game, block);
+		if (state->blocks[block].health > 0)
+			state->ball_direction.y = -state->ball_direction.y;
+		break;
+
+	case direction_left:
+	case direction_right:
+		hit(l_game, block);
+		if (state->blocks[block].health > 0)
+			state->ball_direction.x = -state->ball_direction.x;
+		break;
+
+	default: // Miss
+		break;
+	}
+}
+
 void updateArkanoid(game_t *game, input_t input)
 {
 	assert(game);
@@ -298,34 +329,18 @@ void updateArkanoid(game_t *game, input_t input)
 
 	// Figure out if anything's happened with the blocks this round
 	int b;
-	for (b = 0; b < state->num_blocks; b++) {
-		// Ignore dead blocks obviously
-		if (state->blocks[b].health <= 0) {
-			continue;
+
+	if (state->ball_direction.y < 0) {
+		// Going upwards, test blocks in reverse order
+		for (b = state->num_blocks-1; b >= 0; b--) {
+			blockCollision(l_game, state, last_ball_pos, b);
 		}
 
-		// Intersecting a block
-		direction_t bounce_direction = intersects(l_game, b, last_ball_pos, state->ball_pos, state->blocks[b].top_left, BLOCK_WIDTH, BLOCK_HEIGHT);
-		if (bounce_direction != direction_none) {
-			// If block still alive, bounce
-			// If block died, continue in the same direction
-			switch (bounce_direction) {
-			case direction_up:
-			case direction_down:
-				// TODO: Replace the magic number, possibly with a function taking
-				//  time since last bounce into account
-				hit(l_game, b);
-				if (state->blocks[b].health > 0)
-					state->ball_direction.y = -state->ball_direction.y;
-				break;
-
-			default: // Sideways
-				hit(l_game, b);
-				if (state->blocks[b].health > 0)
-					state->ball_direction.x = -state->ball_direction.x;
-				break;
-			}
-
+	}
+	else {
+		// Going downwards
+		for (b = 0; b < state->num_blocks; b++) {
+			blockCollision(l_game, state, last_ball_pos, b);
 		}
 	}
 
