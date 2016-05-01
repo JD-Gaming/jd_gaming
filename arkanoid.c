@@ -5,8 +5,11 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>
+#include <math.h>
 
 #include "geometry.h"
+
+#define SQRT_2_HALF 0.70710678118
 
 #define SCREEN_WIDTH 640
 #define SCREEN_HEIGHT 480
@@ -152,6 +155,36 @@ void strikeBall(local_game_t *l_game, point_t ball, point_t direction, point_t p
 	point_t iPoint;
 	if (intersectSegment(ballLine, paddleLine, &iPoint)) {
 		game_state_t *state = l_game->_internal_game_state;
+		float dist = (iPoint.x - paddleLine.p1.x) / PADDLE_WIDTH;
+		fprintf(stderr, "Intersect at point {%f, %f}\n", iPoint.x, iPoint.y);
+		fprintf(stderr, "Distance from middle: %f\n", dist);
+
+		if (ballLine.p1.x < ballLine.p2.x) {
+			// Going right
+			float angle = (float)acos(dist * SQRT_2_HALF);
+
+			state->ball_direction.x = (float)cos(angle) * BALL_SPEED;
+			state->ball_direction.y = (float)sin(angle) * BALL_SPEED;
+
+			printf("Right, angle: %f, x: %f, y: %f\n", angle * 180 / 3.14159267, state->ball_direction.x, state->ball_direction.y );
+		}
+		else if (ballLine.p1.x > ballLine.p2.x) {
+			// Going left
+			float angle = (float)acos((1.0 - dist) * SQRT_2_HALF);
+
+			state->ball_direction.x = (float)-cos(angle) * BALL_SPEED;
+			state->ball_direction.y = (float)sin(angle) * BALL_SPEED;
+
+			printf("Left, angle: %f, x: %f, y: %f\n", angle * 180 / 3.14159267, state->ball_direction.x, state->ball_direction.y);
+		}
+		else {
+			// Straight down
+			float angle = (float)acos(2 * (dist - 0.5) * SQRT_2_HALF);
+
+			state->ball_direction.x = (float)sin(angle) * BALL_SPEED;
+			state->ball_direction.y = (float)cos(angle) * BALL_SPEED;
+		}
+
 		// Should do some nifty angle calculations here
 		state->ball_direction.y = -state->ball_direction.y;
 	}

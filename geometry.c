@@ -83,6 +83,7 @@ bool intersectSegment(line_t l1, line_t l2, point_t *p)
 	if (intersect(l1, l2, &tmpP)) {
 		if (withinSegment(tmpP, l1) &&
 			withinSegment(tmpP, l2)) {
+			*p = tmpP;
 			return true;
 		}
 		else {

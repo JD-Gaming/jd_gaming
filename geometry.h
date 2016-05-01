@@ -30,5 +30,4 @@ bool intersectSegment( line_t l1, line_t l2, point_t *p );
 //  the line segment or results will be undefined
 bool withinSegment( point_t p, line_t l );
 
-
 #endif
