@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>
+#define _USE_MATH_DEFINES
 #include <math.h>
 
 #include "geometry.h"
@@ -14,19 +15,25 @@
 #define SCREEN_WIDTH 640
 #define SCREEN_HEIGHT 480
 
-#define BLOCK_WIDTH 64
+#define BLOCK_ROWS 10
+#define BLOCK_COLS 10
+// Try to make this divide exactly or it'll be weird
+#define BLOCK_WIDTH (SCREEN_WIDTH / BLOCK_COLS)
 #define BLOCK_HEIGHT 15
+// Purely cosmetic
 #define BLOCK_MARGIN 1
 
 #define PADDLE_WIDTH 180
 #define PADDLE_HEIGHT 10
+#define PADDLE_Y_POS (SCREEN_HEIGHT - 2 * PADDLE_HEIGHT)
+#define PADDLE_X_POS ((SCREEN_WIDTH - PADDLE_WIDTH) / 2)
 #define PADDLE_MAX_SPEED 15
 
 #define BALL_SIZE 10
 #define BALL_SPEED 4
-
-#define BLOCK_ROWS 4
-#define BLOCK_COLS 10
+#define BALL_START_X ((SCREEN_WIDTH - BALL_SIZE) / 2)
+#define BALL_START_Y (PADDLE_Y_POS - BALL_SIZE)
+#define BALL_START_ANGLE (M_PI/3)
 
 #ifndef min
 #  define min(__a__, __b__) ((__a__) < (__b__) ? (__a__) : (__b__))
@@ -41,8 +48,6 @@ typedef struct block_s {
 } block_t;
 
 typedef struct game_state_s {
-	float *pixels;
-
 	// Add more stuff here, obv
 	int counter;
 
@@ -162,25 +167,22 @@ void strikeBall(local_game_t *l_game, point_t ball, point_t direction, point_t p
 			float angle = (float)acos(dist * SQRT_2_HALF);
 
 			state->ball_direction.x = (float)cos(angle) * BALL_SPEED;
-			state->ball_direction.y = (float)sin(angle) * BALL_SPEED;
+			state->ball_direction.y = (float)-sin(angle) * BALL_SPEED;
 		}
 		else if (ballLine.p1.x > ballLine.p2.x) {
 			// Going left
 			float angle = (float)acos((1.0 - dist) * SQRT_2_HALF);
 
 			state->ball_direction.x = (float)-cos(angle) * BALL_SPEED;
-			state->ball_direction.y = (float)sin(angle) * BALL_SPEED;
+			state->ball_direction.y = (float)-sin(angle) * BALL_SPEED;
 		}
 		else {
 			// Straight down
 			float angle = (float)acos(2 * (dist - 0.5) * SQRT_2_HALF);
 
-			state->ball_direction.x = (float)sin(angle) * BALL_SPEED;
-			state->ball_direction.y = (float)cos(angle) * BALL_SPEED;
+			state->ball_direction.x = (float)cos(angle) * BALL_SPEED;
+			state->ball_direction.y = (float)-sin(angle) * BALL_SPEED;
 		}
-
-		// Should do some nifty angle calculations here
-		state->ball_direction.y = -state->ball_direction.y;
 	}
 }
 
@@ -352,15 +354,15 @@ game_t *createArkanoid(int32_t max_rounds)
 	state->counter = 0;
 
 	// Set up player
-	state->player_pos.x = (SCREEN_WIDTH - PADDLE_WIDTH) / 2;
-	state->player_pos.y = SCREEN_HEIGHT - PADDLE_HEIGHT * 2;
+	state->player_pos.x = PADDLE_X_POS;
+	state->player_pos.y = PADDLE_Y_POS;
 	state->player_speed = 0;
 
 	// Set up ball
-	state->ball_pos.x = (SCREEN_WIDTH - BALL_SIZE) / 2;
-	state->ball_pos.y = SCREEN_HEIGHT / 2;
-	state->ball_direction.x = 2;
-	state->ball_direction.y = -BALL_SPEED;
+	state->ball_pos.x = BALL_START_X;
+	state->ball_pos.y = BALL_START_Y;
+	state->ball_direction.x = (float)cos(BALL_START_ANGLE) * BALL_SPEED;
+	state->ball_direction.y = (float)-sin(BALL_START_ANGLE) * BALL_SPEED;
 
 	// Generate blocks
 	state->num_blocks = BLOCK_ROWS * BLOCK_COLS;
