@@ -15,22 +15,26 @@
 #define SCREEN_WIDTH 640
 #define SCREEN_HEIGHT 480
 
-#define BLOCK_ROWS 10
+#define BLOCK_ROWS 5
 #define BLOCK_COLS 10
 // Try to make this divide exactly or it'll be weird
 #define BLOCK_WIDTH (SCREEN_WIDTH / BLOCK_COLS)
 #define BLOCK_HEIGHT 15
 // Purely cosmetic
 #define BLOCK_MARGIN 1
+#define BLOCK_HEALTH 100
+#define BLOCK_DAMAGE 20
 
-#define PADDLE_WIDTH 180
+#define PADDLE_MAX_WIDTH 80
+#define PADDLE_MIN_WIDTH 10
+#define PADDLE_WIDTH_DECREASE 2
 #define PADDLE_HEIGHT 10
 #define PADDLE_Y_POS (SCREEN_HEIGHT - 2 * PADDLE_HEIGHT)
-#define PADDLE_X_POS ((SCREEN_WIDTH - PADDLE_WIDTH) / 2)
+#define PADDLE_X_POS ((SCREEN_WIDTH - PADDLE_MAX_WIDTH) / 2)
 #define PADDLE_MAX_SPEED 15
 
 #define BALL_SIZE 10
-#define BALL_SPEED 4
+#define BALL_SPEED 7
 #define BALL_START_X ((SCREEN_WIDTH - BALL_SIZE) / 2)
 #define BALL_START_Y (PADDLE_Y_POS - BALL_SIZE)
 #define BALL_START_ANGLE (M_PI/3)
@@ -59,6 +63,7 @@ typedef struct game_state_s {
 
 	point_t player_pos;
 	float   player_speed;
+	uint32_t paddle_width;
 
 	point_t ball_pos;
 	point_t ball_direction; // Not true coordinates, use as a vector
@@ -172,7 +177,7 @@ void strikeBall(local_game_t *l_game, point_t ball, point_t direction, point_t p
 		// Reset points per hit when the paddle strikes
 		state->points_per_hit = POINTS_BASE;
 
-		float dist = (iPoint.x - paddleLine.p1.x) / PADDLE_WIDTH;
+		float dist = (iPoint.x - paddleLine.p1.x) / (width);
 
 		if (ballLine.p1.x < ballLine.p2.x) {
 			// Going right
@@ -214,7 +219,7 @@ void drawGame(local_game_t *game)
 			for (y = block_top + BLOCK_MARGIN; y < block_top + BLOCK_HEIGHT - BLOCK_MARGIN; y++) {
 				for (x = block_left + BLOCK_MARGIN; x < block_left + BLOCK_WIDTH - BLOCK_MARGIN; x++) {
 					game->screen[y * game->screen_width + x] =
-						(float)(state->blocks[i].health / 100.0);
+						(float)(state->blocks[i].health / (float)BLOCK_HEALTH);
 				}
 			}
 		}
@@ -223,7 +228,7 @@ void drawGame(local_game_t *game)
 	int player_top = (int)state->player_pos.y;
 	int player_left = (int)state->player_pos.x;
 	for (y = player_top; y < player_top + PADDLE_HEIGHT; y++) {
-		for (x = player_left; x < player_left + PADDLE_WIDTH; x++) {
+		for (x = player_left; x < player_left + state->paddle_width; x++) {
 			game->screen[y * game->screen_width + x] = 0.75;
 		}
 	}
@@ -240,9 +245,34 @@ void drawGame(local_game_t *game)
 void hit(local_game_t *l_game, int block)
 {
 	game_state_t *state = l_game->_internal_game_state;
-	state->blocks[block].health -= 20;
+	state->blocks[block].health -= BLOCK_DAMAGE;
 	l_game->score += state->points_per_hit;
 	state->points_per_hit += POINTS_INCREASE;
+}
+
+void initBlocks(game_state_t *state)
+{
+	int row, col;
+	for (row = 0; row < BLOCK_ROWS; row++) {
+		for (col = 0; col < BLOCK_COLS; col++) {
+			state->blocks[row * BLOCK_COLS + col].top_left.y = (float)row * BLOCK_HEIGHT;
+			state->blocks[row * BLOCK_COLS + col].top_left.x = (float)col * BLOCK_WIDTH;
+			state->blocks[row * BLOCK_COLS + col].health = BLOCK_HEALTH;
+		}
+	}
+}
+
+bool areBlocksDead(game_state_t *state)
+{
+	int row, col;
+	for (row = 0; row < BLOCK_ROWS; row++) {
+		for (col = 0; col < BLOCK_COLS; col++) {
+			if (state->blocks[row * BLOCK_COLS + col].health > 0)
+				return false;
+		}
+	}
+
+	return true;
 }
 
 void updateArkanoid(game_t *game, input_t input)
@@ -257,8 +287,8 @@ void updateArkanoid(game_t *game, input_t input)
 	if (state->player_pos.x < 0) {
 		state->player_pos.x = 0;
 	}
-	if (state->player_pos.x >= game->screen_width - PADDLE_WIDTH) {
-		state->player_pos.x = (float)game->screen_width - PADDLE_WIDTH - 1;
+	if (state->player_pos.x >= game->screen_width - state->paddle_width) {
+		state->player_pos.x = (float)game->screen_width - state->paddle_width - 1;
 	}
 
 	// Update ball position
@@ -318,9 +348,18 @@ void updateArkanoid(game_t *game, input_t input)
 		l_game->game_over = true;
 
 	// Bounce on paddle
-	direction_t bounce_direction = intersects(l_game, -1, last_ball_pos, state->ball_pos, state->player_pos, PADDLE_WIDTH, PADDLE_HEIGHT);
+	direction_t bounce_direction = intersects(l_game, -1, last_ball_pos, state->ball_pos, state->player_pos, state->paddle_width, PADDLE_HEIGHT);
 	if (bounce_direction == direction_down) {
-		strikeBall(l_game, last_ball_pos, state->ball_direction, state->player_pos, PADDLE_WIDTH);
+		strikeBall(l_game, last_ball_pos, state->ball_direction, state->player_pos, state->paddle_width);
+
+		// Reset blocks and increase difficulty
+		if (areBlocksDead(state)) {
+			initBlocks(state);
+			if (state->paddle_width > PADDLE_MIN_WIDTH) {
+				state->paddle_width -= PADDLE_WIDTH_DECREASE;
+				state->player_pos.x += PADDLE_WIDTH_DECREASE / 2;
+			}
+		}
 	}
 
 	drawGame(l_game);
@@ -370,6 +409,7 @@ game_t *createArkanoid(int32_t max_rounds)
 	state->player_pos.x = PADDLE_X_POS;
 	state->player_pos.y = PADDLE_Y_POS;
 	state->player_speed = 0;
+	state->paddle_width = PADDLE_MAX_WIDTH;
 	state->points_per_hit = POINTS_BASE;
 
 	// Set up ball
@@ -382,14 +422,7 @@ game_t *createArkanoid(int32_t max_rounds)
 	state->num_blocks = BLOCK_ROWS * BLOCK_COLS;
 	state->blocks = malloc(sizeof(block_t) * state->num_blocks);
 
-	int row, col;
-	for (row = 0; row < BLOCK_ROWS; row++) {
-		for (col = 0; col < BLOCK_COLS; col++) {
-			state->blocks[row * BLOCK_COLS + col].top_left.y = (float)row * BLOCK_HEIGHT;
-			state->blocks[row * BLOCK_COLS + col].top_left.x = (float)col * BLOCK_WIDTH;
-			state->blocks[row * BLOCK_COLS + col].health = 100;
-		}
-	}
+	initBlocks(state);
 
 	// Set the first pixel state
 	drawGame(tmp);
