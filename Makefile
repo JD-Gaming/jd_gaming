@@ -9,7 +9,7 @@ else
 endif
 
 CCFLAGS = -g -Wall -O3 \
-	-I$(LIBDIR)
+	-I$(LIBDIR) -Iinclude
 
 LDFLAGS = -L$(LIBDIR)
 ifeq ($(findstring CYGWIN,$(OSNAME)),CYGWIN)
@@ -25,15 +25,15 @@ game$(EXT): player.o arkanoid.o geometry.o
 	echo "[LD] $@"
 	${GCC} $(CCFLAGS) $^ $(LDFLAGS) -o $@
 
-player.o: player.c arkanoid.h game.h
+player.o: src/player.c include/arkanoid.h include/game.h
 	echo "[CC] $@"
 	${GCC} $(CCFLAGS) -c $<
 
-arkanoid.o: arkanoid.c arkanoid.h game.h geometry.h
+arkanoid.o: src/arkanoid.c include/arkanoid.h include/game.h include/geometry.h
 	echo "[CC] $@"
 	${GCC} $(CCFLAGS) -c $<
 
-geometry.o: geometry.c geometry.h
+geometry.o: src/geometry.c include/geometry.h
 	echo "[CC] $@"
 	${GCC} $(CCFLAGS) -c $<
 

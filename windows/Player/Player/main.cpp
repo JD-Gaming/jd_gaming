@@ -10,8 +10,8 @@
 #include "screen.h"
 
 extern "C" {
-#include "../../../game.h"
-#include "../../../arkanoid.h"
+#include "../../../include/game.h"
+#include "../../../include/arkanoid.h"
 }
 
 #define FLOAT_TO_PIXEL(__val__) \
