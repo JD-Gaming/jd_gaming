@@ -35,6 +35,12 @@
 #define BALL_START_Y (PADDLE_Y_POS - BALL_SIZE)
 #define BALL_START_ANGLE (M_PI/3)
 
+// Number of points per struck block initially
+#define POINTS_BASE 10
+// How much the number of points increase with every strike before being
+//  reset by hitting the paddle
+#define POINTS_INCREASE 1
+
 #ifndef min
 #  define min(__a__, __b__) ((__a__) < (__b__) ? (__a__) : (__b__))
 #endif
@@ -52,10 +58,12 @@ typedef struct game_state_s {
 	int counter;
 
 	point_t player_pos;
-	float    player_speed;
+	float   player_speed;
 
 	point_t ball_pos;
 	point_t ball_direction; // Not true coordinates, use as a vector
+
+	int points_per_hit;
 
 	int num_blocks;
 	block_t *blocks;
@@ -160,6 +168,10 @@ void strikeBall(local_game_t *l_game, point_t ball, point_t direction, point_t p
 	point_t iPoint;
 	if (intersectSegment(ballLine, paddleLine, &iPoint)) {
 		game_state_t *state = l_game->_internal_game_state;
+
+		// Reset points per hit when the paddle strikes
+		state->points_per_hit = POINTS_BASE;
+
 		float dist = (iPoint.x - paddleLine.p1.x) / PADDLE_WIDTH;
 
 		if (ballLine.p1.x < ballLine.p2.x) {
@@ -229,7 +241,8 @@ void hit(local_game_t *l_game, int block)
 {
 	game_state_t *state = l_game->_internal_game_state;
 	state->blocks[block].health -= 20;
-	l_game->score += 1;
+	l_game->score += state->points_per_hit;
+	state->points_per_hit += POINTS_INCREASE;
 }
 
 void updateArkanoid(game_t *game, input_t input)
@@ -357,6 +370,7 @@ game_t *createArkanoid(int32_t max_rounds)
 	state->player_pos.x = PADDLE_X_POS;
 	state->player_pos.y = PADDLE_Y_POS;
 	state->player_speed = 0;
+	state->points_per_hit = POINTS_BASE;
 
 	// Set up ball
 	state->ball_pos.x = BALL_START_X;
