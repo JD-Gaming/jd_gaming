@@ -14,6 +14,14 @@ CCFLAGS = -g -Wall -O3 \
 LDFLAGS = -L$(LIBDIR)
 ifeq ($(findstring CYGWIN,$(OSNAME)),CYGWIN)
 	LDFLAGS += -lcanvas_cyg -lbmp_cyg
+else ifeq ($(findstring Darwin,$(OSNAME)),Darwin)
+	LDFLAGS += ../../libs/canvas/canvas.o
+	LDFLAGS += ../../libs/canvas/get_pixels.o
+	LDFLAGS += ../../libs/canvas/set_pixels.o
+	LDFLAGS += ../../libs/canvas/jpeg.o
+	LDFLAGS += ../../libs/canvas/bmp.o
+	LDFLAGS += ../../libs/canvas/pnm.o
+	LDFLAGS += ../../libs/bmp/bmp.o
 else
 	LDFLAGS += -lcanvas -lbmp
 endif
