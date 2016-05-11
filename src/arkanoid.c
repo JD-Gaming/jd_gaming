@@ -74,9 +74,18 @@ typedef struct game_state_s {
 	block_t *blocks;
 } game_state_t;
 
+typedef struct local_sensor_s {
+	char *name;
+	uint32_t height;
+	uint32_t width;
+	uint32_t depth;
+	float *data;
+} local_sensor_t;
+
+
 typedef struct local_game_s {
-	uint32_t screen_width, screen_height;
-	float* screen;
+	uint32_t num_sensors;
+	local_sensor_t *sensors;
 	int32_t score;
 	bool game_over;
 
@@ -208,7 +217,7 @@ void drawGame(local_game_t *game)
 	assert(game);
 	game_state_t *state = (game_state_t*)game->_internal_game_state;
 
-	memset(game->screen, 0, sizeof(float) * game->screen_width * game->screen_height);
+	memset(game->sensors[0].data, 0, sizeof(float) * game->sensors[0].width * game->sensors[0].height);
 
 	int i;
 	uint32_t x, y;
@@ -218,7 +227,7 @@ void drawGame(local_game_t *game)
 			uint32_t block_left = (int)state->blocks[i].top_left.x;
 			for (y = block_top + BLOCK_MARGIN; y < block_top + BLOCK_HEIGHT - BLOCK_MARGIN; y++) {
 				for (x = block_left + BLOCK_MARGIN; x < block_left + BLOCK_WIDTH - BLOCK_MARGIN; x++) {
-					game->screen[y * game->screen_width + x] =
+					game->sensors[0].data[y * game->sensors[0].width + x] =
 						(float)(state->blocks[i].health / (float)BLOCK_HEALTH);
 				}
 			}
@@ -229,15 +238,15 @@ void drawGame(local_game_t *game)
 	uint32_t player_left = (int)state->player_pos.x;
 	for (y = player_top; y < player_top + PADDLE_HEIGHT; y++) {
 		for (x = player_left; x < player_left + state->paddle_width; x++) {
-			game->screen[y * game->screen_width + x] = 0.75;
+			game->sensors[0].data[y * game->sensors[0].width + x] = 0.75;
 		}
 	}
 
 	uint32_t ball_top = (int)state->ball_pos.y;
 	uint32_t ball_left = (int)state->ball_pos.x;
-	for (y = ball_top; y < ball_top + BALL_SIZE && y < (int)game->screen_height; y++) {
-		for (x = ball_left; x < ball_left + BALL_SIZE && x < (int)game->screen_width; x++) {
-			game->screen[y * game->screen_width + x] = 0.5;
+	for (y = ball_top; y < ball_top + BALL_SIZE && y < (int)game->sensors[0].height; y++) {
+		for (x = ball_left; x < ball_left + BALL_SIZE && x < (int)game->sensors[0].width; x++) {
+			game->sensors[0].data[y * game->sensors[0].width + x] = 0.5;
 		}
 	}
 }
@@ -318,8 +327,8 @@ void updateArkanoid(game_t *game, input_t input)
 	if (state->player_pos.x < 0) {
 		state->player_pos.x = 0;
 	}
-	if (state->player_pos.x >= game->screen_width - state->paddle_width) {
-		state->player_pos.x = (float)game->screen_width - state->paddle_width - 1;
+	if (state->player_pos.x >= game->sensors[0].width - state->paddle_width) {
+		state->player_pos.x = (float)game->sensors[0].width - state->paddle_width - 1;
 	}
 
 	// Update ball position
@@ -349,8 +358,8 @@ void updateArkanoid(game_t *game, input_t input)
 		state->ball_pos.x = -state->ball_pos.x;
 		state->ball_direction.x = -state->ball_direction.x;
 	}
-	if (state->ball_pos.x + BALL_SIZE >= game->screen_width - 1) {
-		state->ball_pos.x = 2 * (game->screen_width - 1 - BALL_SIZE) - state->ball_pos.x;
+	if (state->ball_pos.x + BALL_SIZE >= game->sensors[0].width - 1) {
+		state->ball_pos.x = 2 * (game->sensors[0].width - 1 - BALL_SIZE) - state->ball_pos.x;
 		state->ball_direction.x = -state->ball_direction.x;
 	}
 	if (state->ball_pos.y <= 0) {
@@ -359,7 +368,7 @@ void updateArkanoid(game_t *game, input_t input)
 	}
 
 	// Die at the bottom
-	if (state->ball_pos.y + BALL_SIZE >= game->screen_height - 1)
+	if (state->ball_pos.y + BALL_SIZE >= game->sensors[0].height - 1)
 		l_game->game_over = true;
 
 	// Bounce on paddle
@@ -390,6 +399,7 @@ game_t *createArkanoid(int32_t max_rounds)
 {
 	local_game_t *tmp = malloc(sizeof(local_game_t));
 	game_state_t *state = NULL;
+	local_sensor_t *sensor = NULL;
 	float *pixels = NULL;
 
 	if (tmp == NULL) {
@@ -409,9 +419,20 @@ game_t *createArkanoid(int32_t max_rounds)
 		return NULL;
 	}
 
-	tmp->screen_width = SCREEN_WIDTH;
-	tmp->screen_height = SCREEN_HEIGHT;
-	tmp->screen = pixels;
+	sensor = malloc(sizeof(local_sensor_t));
+	if (sensor == NULL) {
+		free(pixels);
+		free(tmp);
+		free(state);
+		return NULL;
+	}
+
+	tmp->sensors = sensor;
+	tmp->sensors[0].name = SENSOR_SCREEN;
+	tmp->sensors[0].width = SCREEN_WIDTH;
+	tmp->sensors[0].height = SCREEN_HEIGHT;
+	tmp->sensors[0].depth = 1;
+	tmp->sensors[0].data = pixels;
 	tmp->score = 0;
 	tmp->game_over = false;
 	tmp->_update = updateArkanoid;
@@ -452,7 +473,7 @@ void destroyArkanoid(game_t *game)
 
 		if (l_game->_internal_game_state)
 			free(l_game->_internal_game_state);
-		if (l_game->screen)
-			free(l_game->screen);
+		if (l_game->sensors[0].data)
+			free(l_game->sensors[0].data);
 	}
 }

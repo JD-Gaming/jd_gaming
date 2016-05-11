@@ -26,7 +26,7 @@ int main( void )
 #ifdef DRAW_IMAGES
   Canvas *c;
   canvasInit();
-  c = canvasCreate( game->screen_width, game->screen_height, RGB_888 );
+  c = canvasCreate( game->sensors[0].width, game->sensors[0].height, RGB_888 );
   char filename[50];
 #endif
 
@@ -35,9 +35,9 @@ int main( void )
   while (game->game_over == false) {
 #ifdef DRAW_IMAGES
     int x, y;
-    for (y = 0; y < game->screen_height; y++) {
-      for (x = 0; x < game->screen_width; x++) {
-	uint8_t col = (uint8_t)round( game->screen[y * game->screen_width + x] * 0xff );
+    for (y = 0; y < game->sensors[0].height; y++) {
+      for (x = 0; x < game->sensors[0].width; x++) {
+	uint8_t col = (uint8_t)round( game->sensors[0].data[y * game->sensors[0].width + x] * 0xff );
 	canvasSetRGB( c, x, y, col, col, col );
       }
     }
