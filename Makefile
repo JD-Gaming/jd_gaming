@@ -9,7 +9,7 @@ else
 endif
 
 CCFLAGS = -g -Wall -O3 \
-	-I$(LIBDIR) -Iinclude
+	-I$(LIBDIR) -Iinclude -I../include
 
 LDFLAGS = -L$(LIBDIR)
 ifeq ($(findstring CYGWIN,$(OSNAME)),CYGWIN)
