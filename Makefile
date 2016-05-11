@@ -1,5 +1,6 @@
 GCC=gcc
 LIBDIR=libs
+LIBNAME=libarkanoid.a
 
 OSNAME:=$(shell uname -s)
 ifeq ($(findstring CYGWIN,$(OSNAME)),CYGWIN)
@@ -11,7 +12,7 @@ endif
 CCFLAGS = -g -Wall -O3 \
 	-I$(LIBDIR) -Iinclude
 
-LDFLAGS = -L$(LIBDIR)
+LDFLAGS = -L$(LIBDIR) -L.
 ifeq ($(findstring CYGWIN,$(OSNAME)),CYGWIN)
 	LDFLAGS += -lcanvas_cyg -lbmp_cyg
 else ifeq ($(findstring Darwin,$(OSNAME)),Darwin)
@@ -25,13 +26,17 @@ else ifeq ($(findstring Darwin,$(OSNAME)),Darwin)
 else
 	LDFLAGS += -lcanvas -lbmp
 endif
-LDFLAGS += -ljpeg -lm -lz -lpthread
+LDFLAGS += -ljpeg -lm -lz -lpthread -larkanoid
 
 all: game$(EXT)
 
-game$(EXT): player.o arkanoid.o geometry.o
+game$(EXT): player.o $(LIBNAME)
 	echo "[LD] $@"
 	${GCC} $(CCFLAGS) $^ $(LDFLAGS) -o $@
+
+$(LIBNAME): arkanoid.o geometry.o
+	echo "[AR] $@"
+	ar rcs $@ $^
 
 player.o: src/player.c include/arkanoid.h include/game.h
 	echo "[CC] $@"

@@ -5,6 +5,7 @@
 
 #include <stdint.h>
 
+// Set max_rounds to -1 in order to continue playing until death
 game_t *createArkanoid( int32_t max_rounds );
 void destroyArkanoid( game_t *game );
 
