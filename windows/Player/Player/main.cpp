@@ -28,7 +28,7 @@ int main() {
 	game_t *game = createArkanoid(-1);
 	input_t inputs = { 0, };
 
-	Screen screen(game->screen_width, game->screen_height, "AI world");
+	Screen screen(game->sensors[0].width, game->sensors[0].height, "AI world");
 
 	int leftState = 0;
 	int rightState = 0;
@@ -45,13 +45,13 @@ int main() {
 			screen.toggleVSync(true);
 		}
 
-		for (unsigned int y = 0; y < game->screen_height; y++) {
-			for (unsigned int x = 0; x < game->screen_width; x++) {
+		for (unsigned int y = 0; y < game->sensors[0].height; y++) {
+			for (unsigned int x = 0; x < game->sensors[0].width; x++) {
 				// Windows screens are upside down...
-				uint32_t gVal = (uint32_t)(0xff * game->screen[y * game->screen_width + x]);
+				uint32_t gVal = (uint32_t)(0xff * game->sensors[0].data[y * game->sensors[0].width + x]);
 				uint32_t color = gVal | (gVal << 8) | (gVal << 16) | (gVal << 24);
 
-				screen.pixels[(game->screen_height - y - 1) * game->screen_width + x] = color;
+				screen.pixels[(game->sensors[0].height - y - 1) * game->sensors[0].width + x] = color;
 			}
 		}
 
