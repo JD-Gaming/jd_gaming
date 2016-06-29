@@ -30,7 +30,7 @@ LDFLAGS += -ljpeg -lm -lz -lpthread
 
 all: feedforward$(EXT)
 
-feedforward$(EXT): neurons.o main.o
+feedforward$(EXT): neurons.o network.o main.o
 	echo "[LD] $@"
 	${GCC} $(CCFLAGS) $^ $(LDFLAGS) -o $@
 
@@ -39,6 +39,10 @@ main.o: main.c neurons.h network.h
 	${GCC} $(CCFLAGS) -c $<
 
 neurons.o: neurons.c neurons.h
+	echo "[CC] $@"
+	${GCC} $(CCFLAGS) -c $<
+
+network.o: network.c network.h
 	echo "[CC] $@"
 	${GCC} $(CCFLAGS) -c $<
 
