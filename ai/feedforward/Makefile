@@ -34,7 +34,7 @@ feedforward$(EXT): neurons.o main.o
 	echo "[LD] $@"
 	${GCC} $(CCFLAGS) $^ $(LDFLAGS) -o $@
 
-main.o: main.c neurons.h
+main.o: main.c neurons.h network.h
 	echo "[CC] $@"
 	${GCC} $(CCFLAGS) -c $<
 
