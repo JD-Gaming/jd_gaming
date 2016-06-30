@@ -44,7 +44,7 @@ neurons.o: neurons.c neurons.h
 	echo "[CC] $@"
 	${GCC} $(CCFLAGS) -c $<
 
-network.o: network.c network.h
+network.o: network.c network.h activation.h
 	echo "[CC] $@"
 	${GCC} $(CCFLAGS) -c $<
 

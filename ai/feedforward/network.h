@@ -16,28 +16,37 @@ typedef enum activation_type_e {
   activation_softplus = 0x07, // y = ln(1 + exp(x))
   activation_gaussian = 0x08, // y = exp(-(x*x))
   activation_sinc     = 0x09, // y = x == 0 ? 1 : sin(x)/x
-  activarion_sin      = 0x0a, // y = sin(x)
+  activation_sin      = 0x0a, // y = sin(x)
+
+  // Add any new functions above this value
+  activation_max
 } activation_type_t;
 
+typedef struct network_layer_s {
+  // Number of neurons in layer
+  uint64_t           width;
+  // Number of connections each neuron has to previous layer
+  uint64_t           numConnections;
+  // Seed used for generating connections
+  uint64_t          *seeds;
+  // List of connections to previous layer
+  uint64_t         **connections;
+  // Weights associated with the above connections
+  float            **weights;
+  // Activatiion functions of all neurons
+  activation_type_t *activations;
+  // Temporary calculation results
+  float             *values;
+} network_layer_t;
+
 typedef struct network_s {
-  uint64_t           numInputs;
-  uint64_t           numHidden; // Extend to add more layers later
-  uint64_t           numOutputs;
+  // Size of network
+  uint64_t         numInputs;
+  uint64_t         numHidden; // Extend to add more layers later
+  uint64_t         numOutputs;
 
-  uint64_t           numHiddenConnections;
-  uint64_t           numOutputConnections;
-
-  uint64_t          *hiddenSeeds;
-  uint64_t         **hiddenConnections;
-  float            **hiddenWeights;
-  activation_type_t *hiddenActivations;
-  float             *hiddenVals;
-
-  uint64_t          *outputSeeds;
-  uint64_t         **outputConnections;
-  float            **outputWeights;
-  activation_type_t *outputActivations;
-  float             *outputVals;
+  network_layer_t *hiddenLayer; // Turn into array eventually
+  network_layer_t *outputLayer;
 } network_t;
 
 // Create a non-initialized network with the specified dimensions.
