@@ -12,12 +12,21 @@ int main( void )
   const size_t numHidden = 2;
   const size_t numOutputs = 1;
 
+  /*
+  const size_t numInputs = 2*(640*480) + 5;
+  const size_t numHidden = 500; //numInputs/10;
+  const size_t numOutputs = 8;
+  */
   size_t i;
 
   // Get some better randomness going
   srand((unsigned)(time(NULL)));
 
   network_t *net = networkCreate( numInputs, numHidden, numOutputs );
+  if( net == NULL ) {
+    printf( "Unable to create network\n" );
+    return 0;
+  }
 
   // Load a pre-configured network
   // A NAND network, provided the output uses step function and the hidden use sigmoid
@@ -36,6 +45,21 @@ int main( void )
   networkSetOutputWeight( net, 0, 1, -10.556825 );
   networkSetOutputActivation( net, 0, activation_step );
 
+
+  uint8_t *data;
+  uint64_t dataLen = networkSerialise( net, &data );
+  printf( "Size: %llu\n", (unsigned long long)dataLen );
+
+  network_t *netCopy = NULL;
+  if( dataLen != 0 ) {
+    netCopy = networkUnserialise( dataLen, data );
+    free( data );
+  }
+  if( netCopy == NULL ) {
+    printf( "Unable to unserialise to copy\n" );
+    return 0;
+  }
+
   size_t inp;
   float inputs[4][2];
   inputs[0][0] = 0;  inputs[0][1] = 0;
@@ -47,8 +71,9 @@ int main( void )
     // Set input
     float *inputVal = inputs[inp];
 
-    // Run network
+    // Run networks
     networkRun( net, inputVal );
+    networkRun( netCopy, inputVal );
 
     printf( "Input: {" );
     for( i = 0; i < numInputs; i++ ) {
@@ -60,9 +85,9 @@ int main( void )
     printf( "} -> {" );
     for( i = 0; i < numOutputs; i++ ) {
       if( i+1 < numOutputs )
-	printf( "%f, ", networkGetOutputValue( net, i ) );
+	printf( "%f (%f), ", networkGetOutputValue( net, i ), networkGetOutputValue( netCopy, i ) );
       else
-	printf( "%f", networkGetOutputValue( net, i ) );
+	printf( "%f (%f)", networkGetOutputValue( net, i ), networkGetOutputValue( netCopy, i ) );
     }
     printf( "}\n" );
   }
