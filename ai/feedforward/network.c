@@ -340,6 +340,10 @@ void networkDestroy( network_t *network )
     free(network->outputWeights[i]);
   }
   free(network->outputWeights);
+  for( i = 0; i < network->numOutputs; i++ ) {
+    free(network->outputConnections[i]);
+  }
+  free(network->outputConnections);
   free(network->outputSeeds);
   free(network->hiddenVals);
   free(network->hiddenActivations);
@@ -347,6 +351,10 @@ void networkDestroy( network_t *network )
     free(network->hiddenWeights[i]);
   }
   free(network->hiddenWeights);
+  for( i = 0; i < network->numHidden; i++ ) {
+    free(network->hiddenConnections[i]);
+  }
+  free(network->hiddenConnections);
   free(network->hiddenSeeds);
   free(network); 
 }

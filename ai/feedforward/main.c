@@ -113,6 +113,7 @@ int main( void )
 
   networkDestroy(net);
   networkDestroy(netCopy);
+  networkDestroy(netFile);
 
   return 0;
 }
