@@ -10,6 +10,8 @@ else
 endif
 
 CCFLAGS = -g -Wall -O3 \
+	-std=c99 \
+	-Ipcg-c-0.94/include \
 	-I$(LIBDIR) -Iinclude
 
 LDFLAGS = -L$(LIBDIR)

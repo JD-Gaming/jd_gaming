@@ -8,21 +8,26 @@
 
 int main( void )
 {
-  const size_t numInputs = 2;
-  const size_t numHidden = 2;
-  const size_t numOutputs = 1;
-
+  const uint64_t numInputs = 2;
+  const uint64_t numHidden = 2;
+  const uint64_t numHiddenConnections = numInputs;
+  const uint64_t numOutputs = 1;
+  const uint64_t numOutputConnections = numHidden;
   /*
-  const size_t numInputs = 2*(640*480) + 5;
-  const size_t numHidden = 500; //numInputs/10;
-  const size_t numOutputs = 8;
+  const uint64_t numInputs = 2*(640*480) + 5;
+  const uint64_t numHidden = 500; //numInputs/10;
+  const uint64_t numHiddenConnections = numInputs * 0.05;
+  const uint64_t numOutputs = 8;
+  const uint64_t numOutputConnections = numHidden * 0.5;
   */
   size_t i;
 
   // Get some better randomness going
   srand((unsigned)(time(NULL)));
 
-  network_t *net = networkCreate( numInputs, numHidden, numOutputs );
+  network_t *netCopy = NULL;
+  network_t *netFile = NULL;
+  network_t *net = networkCreate( numInputs, numHidden, numHiddenConnections, numOutputs, numOutputConnections, false );
   if( net == NULL ) {
     printf( "Unable to create network\n" );
     return 0;
@@ -45,18 +50,25 @@ int main( void )
   networkSetOutputWeight( net, 0, 1, -10.556825 );
   networkSetOutputActivation( net, 0, activation_step );
 
+  networkSaveFile( net, "test.net" );
 
+  // Copy from buffer
   uint8_t *data;
   uint64_t dataLen = networkSerialise( net, &data );
   printf( "Size: %llu\n", (unsigned long long)dataLen );
-
-  network_t *netCopy = NULL;
   if( dataLen != 0 ) {
     netCopy = networkUnserialise( dataLen, data );
     free( data );
   }
   if( netCopy == NULL ) {
     printf( "Unable to unserialise to copy\n" );
+    return 0;
+  }
+
+  // Read from a file
+  netFile = networkLoadFile( "test.net" );
+  if( netFile == NULL ) {
+    printf( "Unable to read from file\n" );
     return 0;
   }
 
@@ -74,6 +86,7 @@ int main( void )
     // Run networks
     networkRun( net, inputVal );
     networkRun( netCopy, inputVal );
+    networkRun( netFile, inputVal );
 
     printf( "Input: {" );
     for( i = 0; i < numInputs; i++ ) {
@@ -85,12 +98,21 @@ int main( void )
     printf( "} -> {" );
     for( i = 0; i < numOutputs; i++ ) {
       if( i+1 < numOutputs )
-	printf( "%f (%f), ", networkGetOutputValue( net, i ), networkGetOutputValue( netCopy, i ) );
+	printf( "%f (%f, %f), ",
+		networkGetOutputValue( net, i ),
+		networkGetOutputValue( netCopy, i ),
+		networkGetOutputValue( netFile, i ) );
       else
-	printf( "%f (%f)", networkGetOutputValue( net, i ), networkGetOutputValue( netCopy, i ) );
+	printf( "%f (%f, %f)",
+		networkGetOutputValue( net, i ),
+		networkGetOutputValue( netCopy, i ),
+		networkGetOutputValue( netFile, i ) );
     }
     printf( "}\n" );
   }
+
+  networkDestroy(net);
+  networkDestroy(netCopy);
 
   return 0;
 }

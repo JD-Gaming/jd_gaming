@@ -20,20 +20,30 @@ typedef enum activation_type_e {
 } activation_type_t;
 
 typedef struct network_s {
-  uint64_t numInputs;
-  uint64_t numHidden; // Extend to add more layers later
-  uint64_t numOutputs;
+  uint64_t           numInputs;
+  uint64_t           numHidden; // Extend to add more layers later
+  uint64_t           numOutputs;
 
-  float **hiddenWeights;
+  uint64_t           numHiddenConnections;
+  uint64_t           numOutputConnections;
+
+  uint64_t          *hiddenSeeds;
+  uint64_t         **hiddenConnections;
+  float            **hiddenWeights;
   activation_type_t *hiddenActivations;
-  float *hiddenVals;
-  float **outputWeights;
+  float             *hiddenVals;
+
+  uint64_t          *outputSeeds;
+  uint64_t         **outputConnections;
+  float            **outputWeights;
   activation_type_t *outputActivations;
-  float *outputVals;
+  float             *outputVals;
 } network_t;
 
-// Create a non-initialized network with the specified dimensions
-network_t *networkCreate( uint64_t inputs, uint64_t hidden, uint64_t outputs );
+// Create a non-initialized network with the specified dimensions.
+//  If number of weights equals number of inputs, the connections will
+//  be initalised linearly rather than randomly.
+network_t *networkCreate( uint64_t inputs, uint64_t hidden, uint64_t hWeights, uint64_t outputs, uint64_t oWeights, bool initialise );
 // Free memory used by a network
 void networkDestroy( network_t *network );
 
@@ -61,7 +71,13 @@ uint64_t networkGetNumInputs( network_t *network );
 uint64_t networkGetNumHidden( network_t *network );
 uint64_t networkGetNumOutputs( network_t *network );
 
-// Manipulate hidden layer
+// Get the number of connections each neuron in a layer has
+uint64_t networkGetNumHiddenConnections( network_t *network );
+uint64_t networkGetNumOutputConnections( network_t *network );
+
+// Manipulate hidden layer.  If a seed is set to 0, the connections will be linear rather than random
+void networkSetHiddenSeed( network_t *network, uint64_t idx, uint64_t seed );
+uint64_t networkGetHiddenSeed( network_t *network, uint64_t idx );
 void networkSetHiddenBias( network_t *network, uint64_t idx, float bias );
 float networkGetHiddenBias( network_t *network, uint64_t idx );
 void networkSetHiddenWeight( network_t *network, uint64_t idx, uint64_t source, float weight );
@@ -69,7 +85,9 @@ float networkGetHiddenWeight( network_t *network, uint64_t idx, uint64_t source 
 void networkSetHiddenActivation( network_t *network, uint64_t idx, activation_type_t activation );
 activation_type_t networkGetHiddenActivation( network_t *network, uint64_t idx );
 
-// Manipulate output layer
+// Manipulate output layer.  If a seed is set to 0, the connections will be linear rather than random
+void networkSetOutputSeed( network_t *network, uint64_t idx, uint64_t seed );
+uint64_t networkGetOutputSeed( network_t *network, uint64_t idx );
 void networkSetOutputBias( network_t *network, uint64_t idx, float bias );
 float networkGetOutputBias( network_t *network, uint64_t idx );
 void networkSetOutputWeight( network_t *network, uint64_t idx, uint64_t source, float weight );

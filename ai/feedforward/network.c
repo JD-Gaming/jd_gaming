@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include <math.h>
 
+#include "pcg_variants.h"
+
 typedef float (*act_func) ( float val );
 
 static float act_linear( float val )
@@ -91,7 +93,27 @@ static act_func activationToFunction( activation_type_t activation )
   return act_linear;
 }
 
-network_t *networkCreate( uint64_t inputs, uint64_t hidden, uint64_t outputs )
+// A seed = 0 creates a linear mapping rather than a random one
+static void createConnections( uint64_t seed, uint64_t sourceSize, uint64_t numConnections, uint64_t positions[] )
+{
+  if( seed != 0 ) {
+    pcg64_random_t rng;
+
+    pcg64_srandom_r(&rng, seed, seed * sourceSize);
+
+    uint64_t i;
+    for( i = 0; i < numConnections; i++ ) {
+      positions[i] = pcg64_boundedrand_r(&rng, sourceSize);
+    }
+  } else {
+    uint64_t i;
+    for( i = 0; i < numConnections; i++ ) {
+      positions[i] = i;
+    }
+  }
+}
+
+network_t *networkCreate( uint64_t inputs, uint64_t hidden, uint64_t hWeights, uint64_t outputs, uint64_t oWeights, bool initialise )
 {
   uint64_t i, last;
 
@@ -104,14 +126,62 @@ network_t *networkCreate( uint64_t inputs, uint64_t hidden, uint64_t outputs )
   tmp->numHidden = hidden;
   tmp->numOutputs = outputs;
 
+  tmp->numHiddenConnections = hWeights;
+  tmp->numOutputConnections = oWeights;
+
   // Set up memory for hidden layer
+  tmp->hiddenSeeds = malloc(sizeof(uint64_t) * tmp->numHidden);
+  if( tmp->hiddenSeeds == NULL ) {
+    goto err_hidden_seeds;
+  }
+  if( initialise ) {
+    for( i = 0; i < tmp->numHidden; i++ ) {
+      tmp->hiddenSeeds[i] = ((uint64_t)rand() << 32) | (uint64_t)rand();
+    }
+  } else {
+    for( i = 0; i < tmp->numHidden; i++ ) {
+      tmp->hiddenSeeds[i] = 0;
+    }
+  }
+
+  tmp->hiddenConnections = malloc(sizeof(uint64_t*) * tmp->numHidden);
+  if( tmp->hiddenConnections == NULL ) {
+    goto err_hidden_connections;
+  }
+
+  for( i = 0; i < tmp->numHidden; i++ ) {
+    tmp->hiddenConnections[i] = malloc(sizeof(uint64_t) * tmp->numHiddenConnections);
+    if( tmp->hiddenConnections[i] == NULL ) {
+      last = i;
+      goto err_hidden_connections_arr;
+    }
+  }
+  // If number of hidden connections is the same as number of inputs, make a linear connection
+  if( tmp->numHiddenConnections != tmp->numInputs &&
+      initialise ) {
+    for( i = 0; i < tmp->numHidden; i++ ) {
+      createConnections( tmp->hiddenSeeds[i],
+			 tmp->numInputs,
+			 tmp->numHiddenConnections,
+			 tmp->hiddenConnections[i] );
+    }
+  } else {
+    // Create a linear mapping
+    for( i = 0; i < tmp->numHidden; i++ ) {
+      createConnections( 0,
+			 tmp->numInputs,
+			 tmp->numHiddenConnections,
+			 tmp->hiddenConnections[i] );
+    }
+  }
+
   tmp->hiddenWeights = malloc(sizeof(float*) * tmp->numHidden);
   if( tmp->hiddenWeights == NULL ) {
     goto err_hidden_weights;
   }
 
   for( i = 0; i < tmp->numHidden; i++ ) {
-    tmp->hiddenWeights[i] = malloc(sizeof(float) * (tmp->numInputs + 1));
+    tmp->hiddenWeights[i] = malloc(sizeof(float) * (tmp->numHiddenConnections + 1));
     if( tmp->hiddenWeights[i] == NULL ) {
       last = i;
       goto err_hidden_weights_arr;
@@ -130,13 +200,57 @@ network_t *networkCreate( uint64_t inputs, uint64_t hidden, uint64_t outputs )
 
 
   // Set up memory for output layer
+  tmp->outputSeeds = malloc(sizeof(uint64_t) * tmp->numOutputs);
+  if( tmp->outputSeeds == NULL ) {
+    goto err_output_seeds;
+  }
+  if( initialise ) {
+    for( i = 0; i < tmp->numOutputs; i++ ) {
+      tmp->outputSeeds[i] = ((uint64_t)rand() << 32) | (uint64_t)rand();
+    }
+  } else {
+    for( i = 0; i < tmp->numOutputs; i++ ) {
+      tmp->outputSeeds[i] = 0;
+    }
+  }
+  tmp->outputConnections = malloc(sizeof(uint64_t*) * tmp->numOutputs);
+  if( tmp->outputConnections == NULL ) {
+    goto err_output_connections;
+  }
+
+  for( i = 0; i < tmp->numOutputs; i++ ) {
+    tmp->outputConnections[i] = malloc(sizeof(uint64_t) * tmp->numOutputConnections);
+    if( tmp->outputConnections[i] == NULL ) {
+      last = i;
+      goto err_output_connections_arr;
+    }
+  }
+  // If number of output connections is the same as number of hidden neurons, make a linear connection
+  if( tmp->numOutputConnections != tmp->numHidden &&
+      initialise ) {
+    for( i = 0; i < tmp->numOutputs; i++ ) {
+      createConnections( tmp->outputSeeds[i],
+			 tmp->numHidden,
+			 tmp->numOutputConnections,
+			 tmp->outputConnections[i] );
+    }
+  } else {
+    // Create a linear mapping
+    for( i = 0; i < tmp->numOutputs; i++ ) {
+      createConnections( 0,
+			 tmp->numHidden,
+			 tmp->numOutputConnections,
+			 tmp->outputConnections[i] );
+    }
+  }
+
   tmp->outputWeights = malloc(sizeof(float*) * tmp->numOutputs);
   if( tmp->outputWeights == NULL ) {
     goto err_output_weights;
   }
 
   for( i = 0; i < tmp->numOutputs; i++ ) {
-    tmp->outputWeights[i] = malloc(sizeof(float) * (tmp->numHidden + 1));
+    tmp->outputWeights[i] = malloc(sizeof(float) * (tmp->numOutputConnections + 1));
     if( tmp->outputWeights[i] == NULL ) {
       last = i;
       goto err_output_weights_arr;
@@ -172,6 +286,18 @@ network_t *networkCreate( uint64_t inputs, uint64_t hidden, uint64_t outputs )
   free(tmp->outputWeights);
 
  err_output_weights:
+  last = tmp->numOutputs;
+
+ err_output_connections_arr:
+  for( i = 0; i < last; i++ ) {
+    free(tmp->outputConnections[i]);
+  }
+  free(tmp->outputConnections);
+
+ err_output_connections:
+  free(tmp->outputSeeds);
+
+ err_output_seeds:
   free(tmp->hiddenVals);
 
  err_hidden_vals:
@@ -187,6 +313,18 @@ network_t *networkCreate( uint64_t inputs, uint64_t hidden, uint64_t outputs )
   free(tmp->hiddenWeights);
 
  err_hidden_weights:
+  last = tmp->numHidden;
+
+ err_hidden_connections_arr:
+  for( i = 0; i < last; i++ ) {
+    free(tmp->hiddenConnections[i]);
+  }
+  free(tmp->hiddenConnections);
+
+ err_hidden_connections:
+  free(tmp->hiddenSeeds);
+
+ err_hidden_seeds:
   free(tmp); 
 
  err_object:
@@ -196,17 +334,20 @@ network_t *networkCreate( uint64_t inputs, uint64_t hidden, uint64_t outputs )
 void networkDestroy( network_t *network )
 {
   uint64_t i;
+  free(network->outputVals);
   free(network->outputActivations);
   for( i = 0; i < network->numOutputs; i++ ) {
     free(network->outputWeights[i]);
   }
   free(network->outputWeights);
+  free(network->outputSeeds);
   free(network->hiddenVals);
   free(network->hiddenActivations);
   for( i = 0; i < network->numHidden; i++ ) {
     free(network->hiddenWeights[i]);
   }
   free(network->hiddenWeights);
+  free(network->hiddenSeeds);
   free(network); 
 }
 
@@ -215,18 +356,18 @@ bool networkRun( network_t *network, float *inputs )
   uint64_t i, j;
   // Calc hidden layer
   for( i = 0; i < network->numHidden; i++ ) {
-    float tmpVal = network->hiddenWeights[i][network->numInputs]; // Bias
-    for( j = 0; j < network->numInputs; j++ ) {
-      tmpVal += inputs[j] * network->hiddenWeights[i][j];
+    float tmpVal = network->hiddenWeights[i][network->numHiddenConnections]; // Bias
+    for( j = 0; j < network->numHiddenConnections; j++ ) {
+      tmpVal += inputs[network->hiddenConnections[i][j]] * network->hiddenWeights[i][j];
     }
     network->hiddenVals[i] = activationToFunction(network->hiddenActivations[i])(tmpVal);
   }
 
   // Calc output layer
   for( i = 0; i < network->numOutputs; i++ ) {
-    float tmpVal = network->outputWeights[i][network->numHidden]; // Bias
-    for( j = 0; j < network->numHidden; j++ ) {
-      tmpVal += network->hiddenVals[j] * network->outputWeights[i][j];
+    float tmpVal = network->outputWeights[i][network->numOutputConnections]; // Bias
+    for( j = 0; j < network->numOutputConnections; j++ ) {
+      tmpVal += network->hiddenVals[network->outputConnections[i][j]] * network->outputWeights[i][j];
     }
     network->outputVals[i] = activationToFunction(network->outputActivations[i])(tmpVal);
   }
@@ -241,24 +382,67 @@ float networkGetOutputValue( network_t *network, uint64_t idx )
 
 network_t *networkLoadFile( char *filename )
 {
-  return NULL;
+  uint64_t len;
+  uint8_t *buf;
+  network_t *tmp;
+
+  FILE *file = fopen( filename, "rb" );
+  if( file == NULL ) {
+    return NULL;
+  }
+
+  fseek( file, 0, SEEK_END );
+  len = ftell( file );
+  rewind( file );
+
+  buf = malloc(len);
+  if( fread( buf, 1, len, file ) != len ) {
+    printf( "Unable to read entire network definition\n" );
+  }
+
+  tmp = networkUnserialise( len, buf );
+
+  free( buf );
+  fclose( file );
+
+  return tmp;
 }
 
 bool networkSaveFile( network_t *network, char *filename )
 {
-  return false;
+  uint64_t len;
+  uint8_t *buf;
+
+  len = networkSerialise( network, &buf );
+
+  if( len == 0 ) {
+    return false;
+  }
+
+  FILE *file = fopen( filename, "wb" );
+  if( file == NULL ) {
+    free( buf );
+    return false;
+  }
+
+  fwrite( buf, 1, len, file );
+
+  fclose( file );
+  free( buf );
+
+  return true;
 }
 
 network_t *networkUnserialise( uint64_t len, uint8_t *data )
 {
-  if( len < 4 * sizeof(uint64_t) ) {
+  if( len < (4 + 2) * sizeof(uint64_t) ) {
     return NULL;
   }
 
   network_t *tmp;
   uint64_t i, h, o, w;
 
-  uint64_t numInputs, numHiddenLayers, numHidden, numOutputs;
+  uint64_t numInputs, numHiddenLayers, numHidden, numOutputs, numHiddenConnections, numOutputConnections;
 
   i = 0;
   numInputs = 0;
@@ -305,17 +489,48 @@ network_t *networkUnserialise( uint64_t len, uint8_t *data )
   numOutputs <<= 8; numOutputs |= data[i++];
   numOutputs <<= 8; numOutputs |= data[i++];
 
-  printf( "Num inputs:  %llu\n", (unsigned long long)numInputs );
-  printf( "Num hidden:  %llu\n", (unsigned long long)numHidden );
-  printf( "Num outputs: %llu\n", (unsigned long long)numOutputs );
+  numHiddenConnections = 0;
+  numHiddenConnections <<= 8; numHiddenConnections |= data[i++];
+  numHiddenConnections <<= 8; numHiddenConnections |= data[i++];
+  numHiddenConnections <<= 8; numHiddenConnections |= data[i++];
+  numHiddenConnections <<= 8; numHiddenConnections |= data[i++];
+  numHiddenConnections <<= 8; numHiddenConnections |= data[i++];
+  numHiddenConnections <<= 8; numHiddenConnections |= data[i++];
+  numHiddenConnections <<= 8; numHiddenConnections |= data[i++];
+  numHiddenConnections <<= 8; numHiddenConnections |= data[i++];
 
-  tmp = networkCreate( numInputs, numHidden, numOutputs );
+  numOutputConnections = 0;
+  numOutputConnections <<= 8; numOutputConnections |= data[i++];
+  numOutputConnections <<= 8; numOutputConnections |= data[i++];
+  numOutputConnections <<= 8; numOutputConnections |= data[i++];
+  numOutputConnections <<= 8; numOutputConnections |= data[i++];
+  numOutputConnections <<= 8; numOutputConnections |= data[i++];
+  numOutputConnections <<= 8; numOutputConnections |= data[i++];
+  numOutputConnections <<= 8; numOutputConnections |= data[i++];
+  numOutputConnections <<= 8; numOutputConnections |= data[i++];
+
+  // Create a network based on the base parameters, but don't initialise it
+  tmp = networkCreate( numInputs, numHidden, numHiddenConnections, numOutputs, numOutputConnections, false );
   if( tmp == NULL ) {
     return NULL;
   }
 
+  // Read hidden layer
   for( h = 0; h < tmp->numHidden; h++ ) {
-    for( w = 0; w < tmp->numInputs + 1; w++ ) {
+    uint64_t seed = 0;
+    seed <<= 8; seed |= data[i++];
+    seed <<= 8; seed |= data[i++];
+    seed <<= 8; seed |= data[i++];
+    seed <<= 8; seed |= data[i++];
+    seed <<= 8; seed |= data[i++];
+    seed <<= 8; seed |= data[i++];
+    seed <<= 8; seed |= data[i++];
+    seed <<= 8; seed |= data[i++];
+    networkSetHiddenSeed( tmp, h, seed );
+  }
+
+  for( h = 0; h < tmp->numHidden; h++ ) {
+    for( w = 0; w < tmp->numHiddenConnections + 1; w++ ) {
       uint32_t val = 0;
       val <<= 8; val |= data[i++];
       val <<= 8; val |= data[i++];
@@ -332,8 +547,22 @@ network_t *networkUnserialise( uint64_t len, uint8_t *data )
     networkSetHiddenActivation( tmp, h, (activation_type_t)data[i++] );
   }
 
+  // Read output layer
   for( o = 0; o < tmp->numOutputs; o++ ) {
-    for( w = 0; w < tmp->numHidden + 1; w++ ) {
+    uint64_t seed = 0;
+    seed <<= 8; seed |= data[i++];
+    seed <<= 8; seed |= data[i++];
+    seed <<= 8; seed |= data[i++];
+    seed <<= 8; seed |= data[i++];
+    seed <<= 8; seed |= data[i++];
+    seed <<= 8; seed |= data[i++];
+    seed <<= 8; seed |= data[i++];
+    seed <<= 8; seed |= data[i++];
+    networkSetOutputSeed( tmp, o, seed );
+  }
+
+  for( o = 0; o < tmp->numOutputs; o++ ) {
+    for( w = 0; w < tmp->numOutputConnections + 1; w++ ) {
       uint32_t val = 0;
       val <<= 8; val |= data[i++];
       val <<= 8; val |= data[i++];
@@ -360,12 +589,18 @@ uint64_t networkSerialise( network_t *network, uint8_t **data )
 
   // numInputs, <reserved>, numHidden, numOutputs
   length += 4 * sizeof(uint64_t);
+  // numHiddenConnections, numOutputConnections
+  length += 2 * sizeof(uint64_t);
+  // Hidden seeds
+  length += sizeof(uint64_t) * network->numHidden;
   // Hidden weights
-  length += sizeof(float) * (network->numHidden * (network->numInputs + 1));
+  length += sizeof(float) * (network->numHidden * (network->numHiddenConnections + 1));
   // Hidden activations
   length += network->numHidden;
+  // Output seeds
+  length += sizeof(uint64_t) * network->numOutputs;
   // Output weights
-  length += sizeof(float) * (network->numOutputs * (network->numHidden + 1));
+  length += sizeof(float) * (network->numOutputs * (network->numOutputConnections + 1));
   // Output activations
   length += network->numOutputs;
 
@@ -416,9 +651,39 @@ uint64_t networkSerialise( network_t *network, uint8_t **data )
   bytes[i++] = (network->numOutputs >>  8) & 0xff;
   bytes[i++] = (network->numOutputs >>  0) & 0xff;
 
+  // Connections
+  bytes[i++] = (network->numHiddenConnections >> 56) & 0xff;
+  bytes[i++] = (network->numHiddenConnections >> 48) & 0xff;
+  bytes[i++] = (network->numHiddenConnections >> 40) & 0xff;
+  bytes[i++] = (network->numHiddenConnections >> 32) & 0xff;
+  bytes[i++] = (network->numHiddenConnections >> 24) & 0xff;
+  bytes[i++] = (network->numHiddenConnections >> 16) & 0xff;
+  bytes[i++] = (network->numHiddenConnections >>  8) & 0xff;
+  bytes[i++] = (network->numHiddenConnections >>  0) & 0xff;
+
+  bytes[i++] = (network->numOutputConnections >> 56) & 0xff;
+  bytes[i++] = (network->numOutputConnections >> 48) & 0xff;
+  bytes[i++] = (network->numOutputConnections >> 40) & 0xff;
+  bytes[i++] = (network->numOutputConnections >> 32) & 0xff;
+  bytes[i++] = (network->numOutputConnections >> 24) & 0xff;
+  bytes[i++] = (network->numOutputConnections >> 16) & 0xff;
+  bytes[i++] = (network->numOutputConnections >>  8) & 0xff;
+  bytes[i++] = (network->numOutputConnections >>  0) & 0xff;
+
   // Hidden
   for( h = 0; h < network->numHidden; h++ ) {
-    for( w = 0; w < network->numInputs + 1; w++ ) {
+    bytes[i++] = (network->hiddenSeeds[h] >> 56) & 0xff;
+    bytes[i++] = (network->hiddenSeeds[h] >> 48) & 0xff;
+    bytes[i++] = (network->hiddenSeeds[h] >> 40) & 0xff;
+    bytes[i++] = (network->hiddenSeeds[h] >> 32) & 0xff;
+    bytes[i++] = (network->hiddenSeeds[h] >> 24) & 0xff;
+    bytes[i++] = (network->hiddenSeeds[h] >> 16) & 0xff;
+    bytes[i++] = (network->hiddenSeeds[h] >>  8) & 0xff;
+    bytes[i++] = (network->hiddenSeeds[h] >>  0) & 0xff;
+  }
+
+  for( h = 0; h < network->numHidden; h++ ) {
+    for( w = 0; w < network->numHiddenConnections + 1; w++ ) {
       uint32_t tmp = *((uint32_t*)(&(network->hiddenWeights[h][w])));
       bytes[i++] = (tmp >> 24) & 0xff;
       bytes[i++] = (tmp >> 16) & 0xff;
@@ -433,7 +698,18 @@ uint64_t networkSerialise( network_t *network, uint8_t **data )
 
   // Output
   for( o = 0; o < network->numOutputs; o++ ) {
-    for( w = 0; w < network->numHidden + 1; w++ ) {
+    bytes[i++] = (network->outputSeeds[o] >> 56) & 0xff;
+    bytes[i++] = (network->outputSeeds[o] >> 48) & 0xff;
+    bytes[i++] = (network->outputSeeds[o] >> 40) & 0xff;
+    bytes[i++] = (network->outputSeeds[o] >> 32) & 0xff;
+    bytes[i++] = (network->outputSeeds[o] >> 24) & 0xff;
+    bytes[i++] = (network->outputSeeds[o] >> 16) & 0xff;
+    bytes[i++] = (network->outputSeeds[o] >>  8) & 0xff;
+    bytes[i++] = (network->outputSeeds[o] >>  0) & 0xff;
+  }
+
+  for( o = 0; o < network->numOutputs; o++ ) {
+    for( w = 0; w < network->numOutputConnections + 1; w++ ) {
       uint32_t tmp = *((uint32_t*)(&(network->outputWeights[o][w])));
       bytes[i++] = (tmp >> 24) & 0xff;
       bytes[i++] = (tmp >> 16) & 0xff;
@@ -445,9 +721,6 @@ uint64_t networkSerialise( network_t *network, uint8_t **data )
   for( o = 0; o < network->numOutputs; o++ ) {
     bytes[i++] = (uint8_t)network->outputActivations[o];
   }
-
-  printf( "Serialisation done, i = %llu, length = %llu\n",
-	  (unsigned long long)i, (unsigned long long) length);
 
   *data = bytes;
   return length;
@@ -468,14 +741,40 @@ uint64_t networkGetNumOutputs( network_t *network )
   return network->numOutputs;
 }
 
+uint64_t networkGetNumHiddenConnections( network_t *network )
+{
+  return network->numHiddenConnections;
+}
+
+uint64_t networkGetNumOutputConnections( network_t *network )
+{
+  return network->numOutputConnections;
+}
+
+void networkSetHiddenSeed( network_t *network, uint64_t idx, uint64_t seed )
+{
+  if( seed != network->hiddenSeeds[idx] ) {
+    network->hiddenSeeds[idx] = seed;
+    createConnections( network->hiddenSeeds[idx],
+		       network->numInputs,
+		       network->numHiddenConnections,
+		       network->hiddenConnections[idx] );
+  }
+}
+
+uint64_t networkGetHiddenSeed( network_t *network, uint64_t idx )
+{
+  return network->hiddenSeeds[idx];
+}
+
 void networkSetHiddenBias( network_t *network, uint64_t idx, float bias )
 {
-  network->hiddenWeights[idx][network->numInputs] = bias;
+  network->hiddenWeights[idx][network->numHiddenConnections] = bias;
 }
 
 float networkGetHiddenBias( network_t *network, uint64_t idx )
 {
-  return network->hiddenWeights[idx][network->numInputs];
+  return network->hiddenWeights[idx][network->numHiddenConnections];
 }
 
 void networkSetHiddenWeight( network_t *network, uint64_t idx, uint64_t source, float weight )
@@ -498,14 +797,30 @@ activation_type_t networkGetHiddenActivation( network_t *network, uint64_t idx )
   return network->hiddenActivations[idx];
 }
 
+void networkSetOutputSeed( network_t *network, uint64_t idx, uint64_t seed )
+{
+  if( seed != network->outputSeeds[idx] ) {
+    network->outputSeeds[idx] = seed;
+    createConnections( network->outputSeeds[idx],
+		       network->numHidden,
+		       network->numOutputConnections,
+		       network->outputConnections[idx] );
+  }
+}
+
+uint64_t networkGetOutputSeed( network_t *network, uint64_t idx )
+{
+  return network->outputSeeds[idx];
+}
+
 void networkSetOutputBias( network_t *network, uint64_t idx, float bias )
 {
-  network->outputWeights[idx][network->numHidden] = bias;
+  network->outputWeights[idx][network->numOutputConnections] = bias;
 }
 
 float networkGetOutputBias( network_t *network, uint64_t idx )
 {
-  return network->outputWeights[idx][network->numHidden];
+  return network->outputWeights[idx][network->numOutputConnections];
 }
 
 void networkSetOutputWeight( network_t *network, uint64_t idx, uint64_t source, float weight )
