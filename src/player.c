@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <math.h>
-#include <sys/time.h>
+#include <time.h>
 #include <strings.h>
 
 #include "arkanoid.h"
@@ -100,6 +100,8 @@ int main( void )
     }
     */
 
+    networkRun( net, ffwData );
+
     inputs.up         = networkGetOutputValue( net, 0 );
     inputs.down       = networkGetOutputValue( net, 1 );
     inputs.left       = networkGetOutputValue( net, 2 );
@@ -109,11 +111,19 @@ int main( void )
     inputs.actions[2] = networkGetOutputValue( net, 6 );
     inputs.actions[3] = networkGetOutputValue( net, 7 );
 
+    /*
+    printf( "{" );
+    for( i = 0; i < 8; i++ ) {
+      printf( "%f%s", networkGetOutputValue( net, i ), i == 7 ? "" : ", " );
+    }
+    printf( "}\n" );
+    */
+
     // Send input to game
     update( game, inputs );
 
 #ifdef DRAW_IMAGES
-    snprintf( filename, FILENAME_LEN, "/disk1/www/game/game_%010d.jpg", count );
+    snprintf( filename, FILENAME_LEN, "game_%010d.jpg", count );
     canvasSaveJpeg( c, filename, 255 );
 #endif
 
