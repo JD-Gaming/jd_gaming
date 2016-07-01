@@ -207,6 +207,47 @@ network_t *networkCreate( uint64_t inputs, uint64_t hidden, uint64_t hWeights, u
   return tmp;
 }
 
+network_t *networkCopy( network_t *network )
+{
+  network_t *tmp = networkCreate( network->numInputs,
+				  network->numHidden,
+				  network->hiddenLayer->numConnections,
+				  network->numOutputs,
+				  network->outputLayer->numConnections,
+				  false );
+  if( tmp == NULL ) {
+    return NULL;
+  }
+
+  uint64_t i, j;
+
+  for( i = 0; i < tmp->numHidden; i++ ) {
+    networkSetHiddenSeed( tmp, i, networkGetHiddenSeed( network, i ) );
+
+    networkSetHiddenBias( tmp, i, networkGetHiddenBias( network, i ) );
+
+    for( j = 0; j < tmp->hiddenLayer->numConnections; j++ ) {
+      networkSetHiddenWeight( tmp, i, j, networkGetHiddenWeight( network, i, j ) );
+    }
+
+    networkSetHiddenActivation( tmp, i, networkGetHiddenActivation( network, i ) );
+  }
+
+  for( i = 0; i < tmp->numOutputs; i++ ) {
+    networkSetOutputSeed( tmp, i, networkGetOutputSeed( network, i ) );
+
+    networkSetOutputBias( tmp, i, networkGetOutputBias( network, i ) );
+
+    for( j = 0; j < tmp->outputLayer->numConnections; j++ ) {
+      networkSetOutputWeight( tmp, i, j, networkGetOutputWeight( network, i, j ) );
+    }
+
+    networkSetOutputActivation( tmp, i, networkGetOutputActivation( network, i ) );
+  }
+
+  return tmp;
+}
+
 void networkDestroy( network_t *network )
 {
   destroyLayer( network->outputLayer );
@@ -288,6 +329,73 @@ network_t *networkCombine( network_t *mother, network_t *father )
 
   return tmp;
 }
+
+static void networkMutateLayer( network_layer_t *layer, uint64_t numInputs )
+{
+  uint64_t i, j;
+  for( i = 0; i < layer->width; i++ ) {
+    // Don't mess with seed values because they change too much
+
+    // Alter weights a little
+    for( j = 0; j < layer->numConnections+1; j++ ) {
+      if( rand() % 10000 == 0 ) {
+	switch( rand() % 31 ) {
+	case 0 ... 9:
+	  // Add a little
+	  layer->weights[i][j] += (rand() / (float)RAND_MAX) * 5;
+	  break;
+
+	case 10 ... 19:
+	  // Remove a little
+	  layer->weights[i][j] -= (rand() / (float)RAND_MAX) * 5;
+	  break;
+
+	case 20 ... 24:
+	  // Multiply a little
+	  layer->weights[i][j] *= (rand() / (float)RAND_MAX) * 2;
+	  break;
+
+	case 25 ... 29:
+	  // Divide a little
+	  {
+	    float tmpVal = 0;
+	    while( tmpVal == 0 ) {
+	      tmpVal = (rand() / (float)RAND_MAX) * 2;
+	    }
+	    layer->weights[i][j] /= tmpVal;
+	    break;
+	  }
+
+	case 30:
+	  // Replace completely
+	  layer->weights[i][j] = (rand() / (float)RAND_MAX) * 20 - 10;
+	}
+      }
+    }
+
+    // Change a few activation functions
+    if( rand() % 10000 == 0 ) {
+      layer->activations[i] = rand() % (int)activation_max;
+    }
+  }
+}
+
+void networkMutate( network_t *network )
+{
+  networkMutateHiddenLayer( network );
+  networkMutateOutputLayer( network );
+}
+
+void networkMutateHiddenLayer( network_t *network )
+{
+  networkMutateLayer( network->hiddenLayer, network->numInputs );
+}
+
+void networkMutateOutputLayer( network_t *network )
+{
+  networkMutateLayer( network->outputLayer, network->numHidden );
+}
+
 
 bool networkRun( network_t *network, float *inputs )
 {
