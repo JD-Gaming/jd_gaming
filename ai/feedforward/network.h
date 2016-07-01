@@ -49,31 +49,43 @@ typedef struct network_s {
   network_layer_t *outputLayer;
 } network_t;
 
+/*******************************************
+ *        Creation and destruction         *
+ *******************************************/
 // Create a non-initialized network with the specified dimensions.
 //  If number of weights equals number of inputs, the connections will
 //  be initalised linearly rather than randomly.
 network_t *networkCreate( uint64_t inputs, uint64_t hidden, uint64_t hWeights, uint64_t outputs, uint64_t oWeights, bool initialise );
+
 // Free memory used by a network
 void networkDestroy( network_t *network );
 
-// Run the network once with the specified input array
-bool networkRun( network_t *network, float *inputs );
-
-// Get the output value for the specified output neuron
-float networkGetOutputValue( network_t *network, uint64_t idx );
-
 // Generate a network from a specification file
 network_t *networkLoadFile( char *filename );
+
 // Save a network to a specification file
 bool networkSaveFile( network_t *network, char *filename );
 
 // Generate a network from a byte stream
 network_t *networkUnserialise( uint64_t len, uint8_t *data );
+
 // Generate a byte stream from a network, will allocate memory for *data
 //  and return the number of bytes used.  Allocation may not be the same
 //  size as the number of bytes used.  Caller is responsible for freeing
 //  memory when done.
 uint64_t networkSerialise( network_t *network, uint8_t **data );
+
+// Randomly combine two networks.  Their dimensions must be identical.
+network_t *networkCombine( network_t *mother, network_t *father );
+
+/*******************************************
+ *                Running                  *
+ *******************************************/
+// Run the network once with the specified input array
+bool networkRun( network_t *network, float *inputs );
+
+// Get the output value for the specified output neuron
+float networkGetOutputValue( network_t *network, uint64_t idx );
 
 // Get information about dimensions
 uint64_t networkGetNumInputs( network_t *network );

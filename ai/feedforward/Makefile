@@ -14,7 +14,7 @@ CCFLAGS = -g -Wall -O3 \
 	-Ipcg-c-0.94/include \
 	-I$(LIBDIR) -Iinclude
 
-LDFLAGS = -L$(LIBDIR)
+LDFLAGS = -L$(LIBDIR) -L.
 ifeq ($(findstring CYGWIN,$(OSNAME)),CYGWIN)
 	LDFLAGS += -lcanvas_cyg -lbmp_cyg
 else ifeq ($(findstring Darwin,$(OSNAME)),Darwin)
@@ -28,13 +28,17 @@ else ifeq ($(findstring Darwin,$(OSNAME)),Darwin)
 else
 	LDFLAGS += -lcanvas -lbmp
 endif
-LDFLAGS += -ljpeg -lm -lz -lpthread
+LDFLAGS += -lffann -ljpeg -lm -lz -lpthread
 
 all: feedforward$(EXT)
 
-feedforward$(EXT): neurons.o network.o main.o
+feedforward$(EXT): libffann.a main.o
 	echo "[LD] $@"
 	${GCC} $(CCFLAGS) $^ $(LDFLAGS) -o $@
+
+libffann.a: network.o
+	echo "[AR] $@"
+	ar rcs $@ $^
 
 main.o: main.c neurons.h network.h
 	echo "[CC] $@"

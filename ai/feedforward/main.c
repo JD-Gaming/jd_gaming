@@ -23,6 +23,14 @@ int main( void )
   srand((unsigned)(time(NULL)));
 
   network_t *net = networkCreate( numInputs, numHidden, numHiddenConnections, numOutputs, numOutputConnections, true );
+  network_t *net1 = networkCreate( 2, 2, 2, 1, 2, true );
+  network_t *net2 = networkCreate( 2, 2, 2, 1, 2, true );
+  network_t *netChild = networkCombine( net1, net2 );
+
+  networkSaveFile( net1,     "test1.net" );
+  networkSaveFile( net2,     "test2.net" );
+  networkSaveFile( netChild, "testC.net" );
+
   network_t *netFile;
 
   if( net == NULL ) {
@@ -93,6 +101,9 @@ int main( void )
 
   networkDestroy(netFile);
   networkDestroy(net);
+  networkDestroy(net1);
+  networkDestroy(net2);
+  networkDestroy(netChild);
 
   return 0;
 }

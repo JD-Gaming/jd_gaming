@@ -214,6 +214,81 @@ void networkDestroy( network_t *network )
   free( network );
 }
 
+network_t *networkCombine( network_t *mother, network_t *father )
+{
+  uint64_t i, j;
+
+  if( mother->numInputs  != father->numInputs  ||
+      mother->numHidden  != father->numHidden  ||
+      mother->numOutputs != father->numOutputs ||
+      mother->hiddenLayer->numConnections != father->hiddenLayer->numConnections ||
+      mother->outputLayer->numConnections != father->outputLayer->numConnections ) {
+    return NULL;
+  }
+
+  network_t *tmp = networkCreate( mother->numInputs,
+				  mother->numHidden,
+				  mother->hiddenLayer->numConnections,
+				  mother->numOutputs,
+				  mother->outputLayer->numConnections,
+				  false );
+  if( tmp == NULL ) {
+    return NULL;
+  }
+
+  for( i = 0; i < tmp->numHidden; i++ ) {
+    networkSetHiddenSeed( tmp, i,
+			  rand() & 1 ?
+			  networkGetHiddenSeed( mother, i ) :
+			  networkGetHiddenSeed( father, i ) );
+
+    networkSetHiddenBias( tmp, i,
+			  rand() & 1 ?
+			  networkGetHiddenBias( mother, i ) :
+			  networkGetHiddenBias( father, i ) );
+
+    for( j = 0; j < tmp->hiddenLayer->numConnections; j++ ) {
+      networkSetHiddenWeight( tmp, i,
+			      j,
+			      rand() & 1 ?
+			      networkGetHiddenWeight( mother, i, j ) :
+			      networkGetHiddenWeight( father, i, j ) );
+    }
+
+    networkSetHiddenActivation( tmp, i,
+				rand() & 1 ?
+				networkGetHiddenActivation( mother, i ) :
+				networkGetHiddenActivation( father, i ) );
+  }
+
+  for( i = 0; i < tmp->numOutputs; i++ ) {
+    networkSetOutputSeed( tmp, i,
+			  rand() & 1 ?
+			  networkGetOutputSeed( mother, i ) :
+			  networkGetOutputSeed( father, i ) );
+
+    networkSetOutputBias( tmp, i,
+			  rand() & 1 ?
+			  networkGetOutputBias( mother, i ) :
+			  networkGetOutputBias( father, i ) );
+
+    for( j = 0; j < tmp->outputLayer->numConnections; j++ ) {
+      networkSetOutputWeight( tmp, i,
+			      j,
+			      rand() & 1 ?
+			      networkGetOutputWeight( mother, i, j ) :
+			      networkGetOutputWeight( father, i, j ) );
+    }
+
+    networkSetOutputActivation( tmp, i,
+				rand() & 1 ?
+				networkGetOutputActivation( mother, i ) :
+				networkGetOutputActivation( father, i ) );
+  }
+
+  return tmp;
+}
+
 bool networkRun( network_t *network, float *inputs )
 {
   uint64_t i, j;
