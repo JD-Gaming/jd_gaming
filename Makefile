@@ -10,9 +10,9 @@ else
 endif
 
 CCFLAGS = -g -Wall -O3 \
-	-I$(LIBDIR) -Iinclude -I../include
+	-I$(LIBDIR) -Iinclude -I../include -Iai/feedforward -I../ai/feedforward
 
-LDFLAGS = -L$(LIBDIR) -L.
+LDFLAGS = -L$(LIBDIR) -L. -Lai/feedforward
 ifeq ($(findstring CYGWIN,$(OSNAME)),CYGWIN)
 	LDFLAGS += -lcanvas_cyg -lbmp_cyg
 else ifeq ($(findstring Darwin,$(OSNAME)),Darwin)
@@ -26,7 +26,7 @@ else ifeq ($(findstring Darwin,$(OSNAME)),Darwin)
 else
 	LDFLAGS += -lcanvas -lbmp
 endif
-LDFLAGS += -ljpeg -lm -lz -lpthread -larkanoid
+LDFLAGS += -ljpeg -lm -lz -lpthread -larkanoid -lffann
 
 all: game$(EXT)
 
@@ -38,7 +38,7 @@ $(LIBNAME): arkanoid.o geometry.o
 	echo "[AR] $@"
 	ar rcs $@ $^
 
-player.o: src/player.c include/arkanoid.h include/game.h
+player.o: src/player.c include/arkanoid.h include/game.h ai/feedforward/network.h
 	echo "[CC] $@"
 	${GCC} $(CCFLAGS) -c $<
 
