@@ -28,9 +28,13 @@ else
 endif
 LDFLAGS += -ljpeg -lm -lz -lpthread -larkanoid -lffann
 
-all: game$(EXT)
+all: game$(EXT) render$(EXT)
 
-game$(EXT): player.o $(LIBNAME)
+game$(EXT): player.o population.o $(LIBNAME)
+	echo "[LD] $@"
+	${GCC} $(CCFLAGS) $^ $(LDFLAGS) -o $@
+
+render$(EXT): render.o $(LIBNAME)
 	echo "[LD] $@"
 	${GCC} $(CCFLAGS) $^ $(LDFLAGS) -o $@
 
@@ -38,7 +42,15 @@ $(LIBNAME): arkanoid.o geometry.o
 	echo "[AR] $@"
 	ar rcs $@ $^
 
-player.o: src/player.c include/arkanoid.h include/game.h ai/feedforward/network.h
+player.o: src/player.c include/arkanoid.h include/game.h ai/feedforward/network.h src/population.h
+	echo "[CC] $@"
+	${GCC} $(CCFLAGS) -c $<
+
+render.o: src/render.c include/arkanoid.h include/game.h ai/feedforward/network.h
+	echo "[CC] $@"
+	${GCC} $(CCFLAGS) -c $<
+
+population.o: src/population.c src/population.h ai/feedforward/network.h
 	echo "[CC] $@"
 	${GCC} $(CCFLAGS) -c $<
 
