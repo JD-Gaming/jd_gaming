@@ -34,7 +34,7 @@ int main( void )
   const uint64_t numRandom = 5;
   const uint64_t numInputs = 2*(game->sensors[0].width * game->sensors[0].height) + numRandom;
   const uint64_t numHidden = 500; //numInputs/10;
-  const uint64_t numHiddenConnections = numInputs * 0.025;
+  const uint64_t numHiddenConnections = numInputs * 0.05;
   const uint64_t numOutputs = 8;
   const uint64_t numOutputConnections = numHidden * 0.1;
 
@@ -42,7 +42,7 @@ int main( void )
   destroyArkanoid( game );
 
   // Create a population of neural networks
-  const unsigned int numNets = 75;
+  const unsigned int numNets = 50;
   printf( "Creating first generation of %u networks\n", numNets );
   population_t *population = populationCreate( numNets, numInputs, numHidden, numHiddenConnections, numOutputs, numOutputConnections, true );
 
@@ -57,6 +57,8 @@ int main( void )
   for( generation = 0; generation < 2000; generation++ ) {
     printf( "Generation %lu\n", generation );
     srand( runningSeed + generation );
+
+    populationClearScores( population );
 
     int n;
     for( n = 0; n < numNets; n++ ) {
@@ -114,6 +116,8 @@ int main( void )
 	bestNet = n;
       }
 
+      populationSetScore( population, n, game->score );
+
       // Destroy game so we can begin anew with next player
       destroyArkanoid( game );
     } // End of population loop
@@ -123,6 +127,10 @@ int main( void )
     // Print the best net here
     sprintf( filename, "brains/0x%08lx_0x%08lx_%d.ffw", generation, runningSeed, bestScore );
     networkSaveFile( population->networks[bestNet], filename );
+
+    population_t *nextPop = populationSpawn( population );
+    populationDestroy( population );
+    population = nextPop;
   }
 
   populationDestroy( population );
