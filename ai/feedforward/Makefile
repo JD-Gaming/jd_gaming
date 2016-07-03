@@ -9,7 +9,7 @@ else
   EXT:=
 endif
 
-CCFLAGS = -g -Wall -O3 \
+CCFLAGS = -g -Wall \
 	-std=c99 \
 	-Ipcg-c-0.94/include \
 	-I$(LIBDIR) -Iinclude
@@ -28,7 +28,7 @@ else ifeq ($(findstring Darwin,$(OSNAME)),Darwin)
 else
 	LDFLAGS += -lcanvas -lbmp
 endif
-LDFLAGS += -lffann -ljpeg -lm -lz -lpthread
+LDFLAGS += -lffann -ljpeg -lm -lz -lpthread -Lpcg-c-0.94/src -lpcg_random
 
 all: feedforward$(EXT)
 

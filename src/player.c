@@ -33,20 +33,28 @@ int main( void )
 
   const uint64_t numRandom = 5;
   const uint64_t numInputs = 2*(game->sensors[0].width * game->sensors[0].height) + numRandom;
+  const uint64_t numLayers = 4;
+  /*
   const uint64_t numHidden = 500; //numInputs/10;
   const uint64_t numHiddenConnections = numInputs * 0.05;
   const uint64_t numOutputs = 8;
   const uint64_t numOutputConnections = numHidden * 0.1;
-
+  */
+  network_layer_params_t layerParams[] = {
+    (network_layer_params_t) {400, numInputs * 0.05},
+    (network_layer_params_t) {200, 100},
+    (network_layer_params_t) {50, 100},
+    (network_layer_params_t) {8, 50},
+  };
   // Destroy the temporary game
   destroyArkanoid( game );
 
   // Create a population of neural networks
-  const unsigned int numNets = 50;
+  const unsigned int numNets = 10;
   printf( "Creating first generation of %u networks\n", numNets );
-  population_t *population = populationCreate( numNets, numInputs, numHidden, numHiddenConnections, numOutputs, numOutputConnections, true );
+  population_t *population = populationCreate( numNets, numInputs, numLayers, layerParams, true );
 
-  float ffwData[numInputs];
+  float *ffwData = malloc(numInputs * sizeof(float));
   bzero( ffwData, sizeof(float) * numInputs );
 
   int32_t bestScore = 0;

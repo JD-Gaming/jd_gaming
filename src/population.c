@@ -8,9 +8,8 @@
 #include "network.h"
 
 population_t *populationCreate( int numIndividuals, 
-				uint64_t numInputs, 
-				uint64_t numHidden, uint64_t numHiddenConnections, 
-				uint64_t numOutputs, uint64_t numOutputConnections,
+				uint64_t numInputs, uint64_t numLayers,
+				network_layer_params_t *layerParams,
 				bool createNets )
 {
   int i;
@@ -37,7 +36,7 @@ population_t *populationCreate( int numIndividuals,
   // Initialise networks
   if( createNets ) {
     for( i = 0; i < numIndividuals; i++ ) {
-      tmp->networks[i] = networkCreate( numInputs, numHidden, numHiddenConnections, numOutputs, numOutputConnections, true );
+      tmp->networks[i] = networkCreate( numInputs, numLayers, layerParams, true );
     }
   }
 
@@ -58,10 +57,8 @@ population_t *populationSpawn( population_t *population )
 
   population_t *tmp = populationCreate( population->size,
 					networkGetNumInputs( population->networks[0] ),
-					networkGetNumHidden( population->networks[0] ),
-					networkGetNumHiddenConnections( population->networks[0] ),
-					networkGetNumOutputs( population->networks[0] ),
-					networkGetNumOutputConnections( population->networks[0] ),
+					networkGetNumLayers( population->networks[0] ),
+					networkGetLayerParams( population->networks[0] ),
 					false );
   if( tmp == NULL ) {
     return NULL;

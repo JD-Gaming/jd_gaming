@@ -14,9 +14,8 @@ typedef struct population_s {
 
 // Create an entirely new population of networks,
 population_t *populationCreate( int numIndividuals,
-				uint64_t numInputs,
-				uint64_t numHidden, uint64_t numHiddenConnections,
-				uint64_t numOutputs, uint64_t numOutputConnections,
+				uint64_t numInputs, uint64_t numLayers,
+				network_layer_params_t *layerParams,
 				bool createNets );
 
 // Spawn a new population from the best individuals of the last one.

@@ -3,12 +3,16 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <math.h>
+#include <assert.h>
 
 #include "pcg_variants.h"
 
 // List of static functions used for squashing values
 #include "activation.h"
 
+/*******************************************
+ *             Local functions             *
+ *******************************************/
 // A seed = 0 creates a linear mapping rather than a random one
 static void createConnections( uint64_t seed, uint64_t sourceSize, uint64_t numConnections, uint64_t positions[] )
 {
@@ -39,32 +43,32 @@ static network_layer_t *createLayer( uint64_t size, uint64_t inputs, uint64_t co
     goto layer_err_object;
   }
 
-  layer->width = size;
+  layer->numNeurons = size;
   layer->numConnections = connections;
 
   // Seeds
-  layer->seeds = malloc( layer->width * sizeof(uint64_t) );
+  layer->seeds = malloc( layer->numNeurons * sizeof(uint64_t) );
   if( layer->seeds == NULL ) {
     goto layer_err_seeds;
   }
 
   if( initialise ) {
-    for( i = 0; i < layer->width; i++ ) {
+    for( i = 0; i < layer->numNeurons; i++ ) {
       layer->seeds[i] = ((uint64_t)rand() << 32) | (uint64_t)rand();
     }
   } else {
-    for( i = 0; i < layer->width; i++ ) {
+    for( i = 0; i < layer->numNeurons; i++ ) {
       layer->seeds[i] = 0;
     }
   }
 
   // Connections
-  layer->connections = malloc( sizeof(uint64_t*) * layer->width );
+  layer->connections = malloc( sizeof(uint64_t*) * layer->numNeurons );
   if( layer->connections == NULL ) {
     goto layer_err_connections;
   }
 
-  for( i = 0; i < layer->width; i++ ) {
+  for( i = 0; i < layer->numNeurons; i++ ) {
     layer->connections[i] = malloc( sizeof(uint64_t) * layer->numConnections );
     if( layer->connections[i] == NULL ) {
       last = i;
@@ -74,7 +78,7 @@ static network_layer_t *createLayer( uint64_t size, uint64_t inputs, uint64_t co
   // If number of hidden connections is the same as number of inputs, make a linear connection
   if( layer->numConnections != inputs &&
       initialise ) {
-    for( i = 0; i < layer->width; i++ ) {
+    for( i = 0; i < layer->numNeurons; i++ ) {
       createConnections( layer->seeds[i],
 			 inputs,
 			 layer->numConnections,
@@ -82,7 +86,7 @@ static network_layer_t *createLayer( uint64_t size, uint64_t inputs, uint64_t co
     }
   } else {
     // Create a linear mapping
-    for( i = 0; i < layer->width; i++ ) {
+    for( i = 0; i < layer->numNeurons; i++ ) {
       createConnections( 0,
 			 inputs,
 			 layer->numConnections,
@@ -91,11 +95,11 @@ static network_layer_t *createLayer( uint64_t size, uint64_t inputs, uint64_t co
   }
 
   // Weights
-  layer->weights = malloc( sizeof(float*) * layer->width );
+  layer->weights = malloc( sizeof(float*) * layer->numNeurons );
   if( layer->weights == NULL ) {
     goto layer_err_weights;
   }
-  for( i = 0; i < layer->width; i++ ) {
+  for( i = 0; i < layer->numNeurons; i++ ) {
     layer->weights[i] = malloc( sizeof(float) * (layer->numConnections + 1) );
     if( layer->weights[i] == NULL ) {
       last = i;
@@ -109,16 +113,16 @@ static network_layer_t *createLayer( uint64_t size, uint64_t inputs, uint64_t co
   }
 
   // Activations
-  layer->activations = malloc( sizeof(activation_type_t) * layer->width );
+  layer->activations = malloc( sizeof(activation_type_t) * layer->numNeurons );
   if( layer->activations == NULL ) {
     goto layer_err_activations;
   }
-  for( i = 0; i < layer->width; i++ ) {
+  for( i = 0; i < layer->numNeurons; i++ ) {
     layer->activations[i] = (activation_type_t)(rand() % (int)activation_max);
   }
 
   // Values
-  layer->values = malloc( sizeof(float) * layer->width );
+  layer->values = malloc( sizeof(float) * layer->numNeurons );
   if( layer->values == NULL ) {
     goto layer_err_values;
   }
@@ -133,7 +137,7 @@ static network_layer_t *createLayer( uint64_t size, uint64_t inputs, uint64_t co
   free( layer->activations );
 
  layer_err_activations:
-  last = layer->width;
+  last = layer->numNeurons;
 
  layer_err_weights_arr:
   for( i = 0; i < last; i++ ) {
@@ -142,7 +146,7 @@ static network_layer_t *createLayer( uint64_t size, uint64_t inputs, uint64_t co
   free( layer->weights );
 
  layer_err_weights:
-  last = layer->width;
+  last = layer->numNeurons;
 
  layer_err_connections_arr:
   for( i = 0; i < last; i++ ) {
@@ -160,16 +164,18 @@ static network_layer_t *createLayer( uint64_t size, uint64_t inputs, uint64_t co
   return NULL;
 }
 
-void destroyLayer( network_layer_t *layer )
+static void destroyLayer( network_layer_t *layer )
 {
+  assert( layer != NULL );
+
   uint64_t i;
   free( layer->values );
   free( layer->activations );
-  for( i = 0; i < layer->width; i++ ) {
+  for( i = 0; i < layer->numNeurons; i++ ) {
     free( layer->weights[i] );
   }
   free( layer->weights );
-  for( i = 0; i < layer->width; i++ ) {
+  for( i = 0; i < layer->numNeurons; i++ ) {
     free( layer->connections[i] );
   }
   free( layer->connections );
@@ -177,163 +183,10 @@ void destroyLayer( network_layer_t *layer )
   free( layer );
 }
 
-network_t *networkCreate( uint64_t inputs, uint64_t hidden, uint64_t hWeights, uint64_t outputs, uint64_t oWeights, bool initialise )
-{
-  network_t *tmp = malloc(sizeof(network_t));
-  if( tmp == NULL ) {
-    return NULL;
-  }
-
-  tmp->numInputs = inputs;
-  tmp->numHidden = hidden;
-  tmp->numOutputs = outputs;
-
-  // Set up memory for hidden layer
-  tmp->hiddenLayer = createLayer( hidden, inputs, hWeights, initialise );
-  if( tmp->hiddenLayer == NULL ) {
-    free( tmp );
-    return NULL;
-  }
-
-  // Set up memory for output layer
-  tmp->outputLayer = createLayer( outputs, hidden, oWeights, initialise );
-  if( tmp->outputLayer == NULL ) {
-    destroyLayer( tmp->hiddenLayer );
-    free( tmp );
-    return NULL;
-  }
-
-  // Done
-  return tmp;
-}
-
-network_t *networkCopy( network_t *network )
-{
-  network_t *tmp = networkCreate( network->numInputs,
-				  network->numHidden,
-				  network->hiddenLayer->numConnections,
-				  network->numOutputs,
-				  network->outputLayer->numConnections,
-				  false );
-  if( tmp == NULL ) {
-    return NULL;
-  }
-
-  uint64_t i, j;
-
-  for( i = 0; i < tmp->numHidden; i++ ) {
-    networkSetHiddenSeed( tmp, i, networkGetHiddenSeed( network, i ) );
-
-    networkSetHiddenBias( tmp, i, networkGetHiddenBias( network, i ) );
-
-    for( j = 0; j < tmp->hiddenLayer->numConnections; j++ ) {
-      networkSetHiddenWeight( tmp, i, j, networkGetHiddenWeight( network, i, j ) );
-    }
-
-    networkSetHiddenActivation( tmp, i, networkGetHiddenActivation( network, i ) );
-  }
-
-  for( i = 0; i < tmp->numOutputs; i++ ) {
-    networkSetOutputSeed( tmp, i, networkGetOutputSeed( network, i ) );
-
-    networkSetOutputBias( tmp, i, networkGetOutputBias( network, i ) );
-
-    for( j = 0; j < tmp->outputLayer->numConnections; j++ ) {
-      networkSetOutputWeight( tmp, i, j, networkGetOutputWeight( network, i, j ) );
-    }
-
-    networkSetOutputActivation( tmp, i, networkGetOutputActivation( network, i ) );
-  }
-
-  return tmp;
-}
-
-void networkDestroy( network_t *network )
-{
-  destroyLayer( network->outputLayer );
-  destroyLayer( network->hiddenLayer );
-  free( network );
-}
-
-network_t *networkCombine( network_t *mother, network_t *father )
-{
-  uint64_t i, j;
-
-  if( mother->numInputs  != father->numInputs  ||
-      mother->numHidden  != father->numHidden  ||
-      mother->numOutputs != father->numOutputs ||
-      mother->hiddenLayer->numConnections != father->hiddenLayer->numConnections ||
-      mother->outputLayer->numConnections != father->outputLayer->numConnections ) {
-    return NULL;
-  }
-
-  network_t *tmp = networkCreate( mother->numInputs,
-				  mother->numHidden,
-				  mother->hiddenLayer->numConnections,
-				  mother->numOutputs,
-				  mother->outputLayer->numConnections,
-				  false );
-  if( tmp == NULL ) {
-    return NULL;
-  }
-
-  for( i = 0; i < tmp->numHidden; i++ ) {
-    networkSetHiddenSeed( tmp, i,
-			  rand() & 1 ?
-			  networkGetHiddenSeed( mother, i ) :
-			  networkGetHiddenSeed( father, i ) );
-
-    networkSetHiddenBias( tmp, i,
-			  rand() & 1 ?
-			  networkGetHiddenBias( mother, i ) :
-			  networkGetHiddenBias( father, i ) );
-
-    for( j = 0; j < tmp->hiddenLayer->numConnections; j++ ) {
-      networkSetHiddenWeight( tmp, i,
-			      j,
-			      rand() & 1 ?
-			      networkGetHiddenWeight( mother, i, j ) :
-			      networkGetHiddenWeight( father, i, j ) );
-    }
-
-    networkSetHiddenActivation( tmp, i,
-				rand() & 1 ?
-				networkGetHiddenActivation( mother, i ) :
-				networkGetHiddenActivation( father, i ) );
-  }
-
-  for( i = 0; i < tmp->numOutputs; i++ ) {
-    networkSetOutputSeed( tmp, i,
-			  rand() & 1 ?
-			  networkGetOutputSeed( mother, i ) :
-			  networkGetOutputSeed( father, i ) );
-
-    networkSetOutputBias( tmp, i,
-			  rand() & 1 ?
-			  networkGetOutputBias( mother, i ) :
-			  networkGetOutputBias( father, i ) );
-
-    for( j = 0; j < tmp->outputLayer->numConnections; j++ ) {
-      networkSetOutputWeight( tmp, i,
-			      j,
-			      rand() & 1 ?
-			      networkGetOutputWeight( mother, i, j ) :
-			      networkGetOutputWeight( father, i, j ) );
-    }
-
-    networkSetOutputActivation( tmp, i,
-				rand() & 1 ?
-				networkGetOutputActivation( mother, i ) :
-				networkGetOutputActivation( father, i ) );
-  }
-
-  return tmp;
-}
-
 static void networkMutateLayer( network_layer_t *layer, uint64_t numInputs )
 {
   uint64_t i, j;
-  for( i = 0; i < layer->width; i++ ) {
+  for( i = 0; i < layer->numNeurons; i++ ) {
     // Don't mess with seed values because they change too much
 
     // Alter weights a little
@@ -380,50 +233,217 @@ static void networkMutateLayer( network_layer_t *layer, uint64_t numInputs )
   }
 }
 
+static bool layerRun( network_layer_t *layer, float *inputs )
+{
+  assert( layer != NULL );
+  assert( inputs != NULL );
+
+  uint64_t neur, src;
+
+  for( neur = 0; neur < layer->numNeurons; neur++ ) {
+    float tmpVal = layer->weights[neur][layer->numConnections]; // Bias
+    for( src = 0; src < layer->numConnections; src++ ) {
+      tmpVal += inputs[layer->connections[neur][src]] * layer->weights[neur][src];
+    }
+    layer->values[neur] = activationToFunction(layer->activations[neur])(tmpVal);
+  }
+  return true;
+}
+
+
+/*******************************************
+ *           Exported functions            *
+ *******************************************/
+network_t *networkCreate( uint64_t inputs, uint64_t layers, network_layer_params_t *layerParameters, bool initialise )
+{
+  assert( inputs >= 1 );
+  assert( layers >= 1 );
+  assert( layerParameters != NULL );
+
+  network_t *tmp = malloc(sizeof(network_t));
+  if( tmp == NULL ) {
+    return NULL;
+  }
+
+  tmp->numInputs = inputs;
+  tmp->numLayers = layers;
+
+  tmp->layers = malloc( layers * sizeof(network_layer_t) );
+  if( tmp->layers == NULL ) {
+    free( tmp );
+    return NULL;
+  }
+
+  // Special handling of first layer
+  tmp->layers[0] = createLayer( layerParameters[0].numNeurons, inputs, layerParameters[0].numConnections, initialise );
+  if( tmp->layers[0] == NULL ) {
+    free( tmp->layers );
+    free( tmp );
+    return NULL;
+  }
+
+  // Create any extra layers
+  uint64_t i;
+  for( i = 1; i < layers; i++ ) {
+    tmp->layers[i] = createLayer( layerParameters[i].numNeurons, layerParameters[i-1].numNeurons, layerParameters[i].numConnections, initialise );
+    if( tmp->layers[i] == NULL ) {
+      do {
+	destroyLayer( tmp->layers[i] );
+      } while( i-- );
+      free( tmp->layers );
+      free( tmp );
+    }
+  }
+
+  // Done
+  return tmp;
+}
+
+network_t *networkCopy( network_t *network )
+{
+  assert( network != NULL );
+
+  network_layer_params_t *layerParams = networkGetLayerParams( network );
+  if( layerParams == NULL ) {
+    return NULL;
+  }
+
+  network_t *tmp = networkCreate( network->numInputs,
+				  network->numLayers,
+				  layerParams,
+				  false );
+  free( layerParams );
+  if( tmp == NULL ) {
+    return NULL;
+  }
+
+  uint64_t lay, neur, src;
+
+  for( lay = 0; lay < tmp->numLayers; lay++ ) {
+    for( neur = 0; neur < networkGetLayerNumNeurons( network, lay ); neur++ ) {
+      networkSetLayerSeed( tmp, lay, neur, networkGetLayerSeed( network, lay, neur ) );
+
+      networkSetLayerBias( tmp, lay, neur, networkGetLayerBias( network, lay, neur ) );
+
+      for( src = 0; src < networkGetLayerNumConnections( network, lay ); src++ ) {
+	networkSetLayerWeight( tmp, lay, neur, src, networkGetLayerWeight( network, lay, neur, src ) );
+      }
+
+      networkSetLayerActivation( tmp, lay, neur, networkGetLayerActivation( network, lay, neur ) );
+    }
+  }
+
+  return tmp;
+}
+
+void networkDestroy( network_t *network )
+{
+  assert( network != NULL );
+
+  uint64_t lay;
+  for( lay = 0; lay < networkGetNumLayers( network ); lay++ ) {
+    destroyLayer( network->layers[lay] );
+  }
+  free( network );
+}
+
+network_t *networkCombine( network_t *mother, network_t *father )
+{
+  assert( mother != NULL );
+  assert( father != NULL );
+
+  uint64_t lay, neur, src;
+
+  // Networks have to have exactly the same structure
+  if( mother->numInputs  != father->numInputs ||
+      mother->numLayers  != father->numLayers ) {
+    return NULL;
+  }
+  for( lay = 0; lay < mother->numLayers; lay++ ) {
+    if( mother->layers[lay]->numConnections != father->layers[lay]->numConnections ) {
+      return NULL;
+    }
+  }
+
+  network_layer_params_t *layerParams = networkGetLayerParams( mother );
+  if( layerParams == NULL ) {
+    return NULL;
+  }
+
+  network_t *tmp = networkCreate( mother->numInputs,
+				  mother->numLayers,
+				  layerParams,
+				  false );
+  free( layerParams );
+  if( tmp == NULL ) {
+    return NULL;
+  }
+
+  for( lay = 0; lay < tmp->numLayers; lay++ ) {
+    for( neur = 0; neur < tmp->layers[lay]->numNeurons; neur++ ) {
+      networkSetLayerSeed( tmp, lay, neur,
+			    rand() & 1 ?
+			    networkGetLayerSeed( mother, lay, neur ) :
+			    networkGetLayerSeed( father, lay, neur ) );
+
+      networkSetLayerBias( tmp, lay, neur,
+			    rand() & 1 ?
+			    networkGetLayerBias( mother, lay, neur ) :
+			    networkGetLayerBias( father, lay, neur ) );
+
+      for( src = 0; src <= tmp->layers[lay]->numConnections; src++ ) {
+	networkSetLayerWeight( tmp, lay, neur, src,
+			       rand() & 1 ?
+			       networkGetLayerWeight( mother, lay, neur, src ) :
+			       networkGetLayerWeight( father, lay, neur, src ) );
+      }
+
+      networkSetLayerActivation( tmp, lay, neur,
+				  rand() & 1 ?
+				  networkGetLayerActivation( mother, lay, neur ) :
+				  networkGetLayerActivation( father, lay, neur ) );
+    }
+  }
+
+  return tmp;
+}
+
+
 void networkMutate( network_t *network )
 {
-  networkMutateHiddenLayer( network );
-  networkMutateOutputLayer( network );
-}
+  assert( network != NULL );
 
-void networkMutateHiddenLayer( network_t *network )
-{
-  networkMutateLayer( network->hiddenLayer, network->numInputs );
-}
+  uint64_t lay;
 
-void networkMutateOutputLayer( network_t *network )
-{
-  networkMutateLayer( network->outputLayer, network->numHidden );
-}
-
-
-bool networkRun( network_t *network, float *inputs )
-{
-  uint64_t i, j;
-  // Calc hidden layer
-  for( i = 0; i < network->hiddenLayer->width; i++ ) {
-    float tmpVal = network->hiddenLayer->weights[i][network->hiddenLayer->numConnections]; // Bias
-    for( j = 0; j < network->hiddenLayer->numConnections; j++ ) {
-      tmpVal += inputs[network->hiddenLayer->connections[i][j]] * network->hiddenLayer->weights[i][j];
-    }
-    network->hiddenLayer->values[i] = activationToFunction(network->hiddenLayer->activations[i])(tmpVal);
+  networkMutateLayer( network->layers[0], network->numInputs );
+  for( lay = 1; lay < network->numLayers; lay++ ) {
+    networkMutateLayer( network->layers[lay], network->layers[lay-1]->numNeurons );
   }
+}
 
-  // Calc output layer
-  for( i = 0; i < network->outputLayer->width; i++ ) {
-    float tmpVal = network->outputLayer->weights[i][network->outputLayer->numConnections]; // Bias
-    for( j = 0; j < network->outputLayer->numConnections; j++ ) {
-      tmpVal += network->hiddenLayer->values[network->outputLayer->connections[i][j]] * network->outputLayer->weights[i][j];
-    }
-    network->outputLayer->values[i] = activationToFunction(network->outputLayer->activations[i])(tmpVal);
+void networkRun( network_t *network, float *inputs )
+{
+  assert( network != NULL );
+  assert( inputs != NULL );
+
+  uint64_t lay;
+
+  // Special treatment for first layer
+  layerRun( network->layers[0], inputs );
+
+  // Any remaining layers
+  for( lay = 1; lay < network->numLayers; lay++ ) {
+    layerRun( network->layers[lay], network->layers[lay-1]->values );
   }
-
-  return false;
 }
 
 float networkGetOutputValue( network_t *network, uint64_t idx )
 {
-  return network->outputLayer->values[idx];
+  assert( network != NULL );
+  assert( network->numLayers > 0 );
+  assert( idx < network->layers[network->numLayers-1]->numNeurons );
+
+  return network->layers[network->numLayers-1]->values[idx];
 }
 
 network_t *networkLoadFile( char *filename )
@@ -481,14 +501,16 @@ bool networkSaveFile( network_t *network, char *filename )
 
 network_t *networkUnserialise( uint64_t len, uint8_t *data )
 {
-  if( len < (4 + 2) * sizeof(uint64_t) ) {
+  assert( data != NULL );
+
+  if( len < 2 * sizeof(uint64_t) ) {
     return NULL;
   }
 
   network_t *tmp;
-  uint64_t i, h, o, w;
+  uint64_t i, lay, neur, src;
 
-  uint64_t numInputs, numHiddenLayers, numHidden, numOutputs, numHiddenConnections, numOutputConnections;
+  uint64_t numInputs, numLayers;
 
   i = 0;
   numInputs = 0;
@@ -501,128 +523,82 @@ network_t *networkUnserialise( uint64_t len, uint8_t *data )
   numInputs <<= 8; numInputs |= data[i++];
   numInputs <<= 8; numInputs |= data[i++];
 
-  numHiddenLayers = 0;
-  numHiddenLayers <<= 8; numHiddenLayers |= data[i++];
-  numHiddenLayers <<= 8; numHiddenLayers |= data[i++];
-  numHiddenLayers <<= 8; numHiddenLayers |= data[i++];
-  numHiddenLayers <<= 8; numHiddenLayers |= data[i++];
-  numHiddenLayers <<= 8; numHiddenLayers |= data[i++];
-  numHiddenLayers <<= 8; numHiddenLayers |= data[i++];
-  numHiddenLayers <<= 8; numHiddenLayers |= data[i++];
-  numHiddenLayers <<= 8; numHiddenLayers |= data[i++];
-  // Only support a single hidden layer
-  if( numHiddenLayers != 1 ) {
+  numLayers = 0;
+  numLayers <<= 8; numLayers |= data[i++];
+  numLayers <<= 8; numLayers |= data[i++];
+  numLayers <<= 8; numLayers |= data[i++];
+  numLayers <<= 8; numLayers |= data[i++];
+  numLayers <<= 8; numLayers |= data[i++];
+  numLayers <<= 8; numLayers |= data[i++];
+  numLayers <<= 8; numLayers |= data[i++];
+  numLayers <<= 8; numLayers |= data[i++];
+  if( numLayers < 1 ) {
     return NULL;
   }
 
-  numHidden = 0;
-  numHidden <<= 8; numHidden |= data[i++];
-  numHidden <<= 8; numHidden |= data[i++];
-  numHidden <<= 8; numHidden |= data[i++];
-  numHidden <<= 8; numHidden |= data[i++];
-  numHidden <<= 8; numHidden |= data[i++];
-  numHidden <<= 8; numHidden |= data[i++];
-  numHidden <<= 8; numHidden |= data[i++];
-  numHidden <<= 8; numHidden |= data[i++];
+  network_layer_params_t *layerParams = malloc( sizeof(network_layer_params_t) * numLayers );
+  if( layerParams == NULL ) {
+    return NULL;
+  }
 
-  numOutputs = 0;
-  numOutputs <<= 8; numOutputs |= data[i++];
-  numOutputs <<= 8; numOutputs |= data[i++];
-  numOutputs <<= 8; numOutputs |= data[i++];
-  numOutputs <<= 8; numOutputs |= data[i++];
-  numOutputs <<= 8; numOutputs |= data[i++];
-  numOutputs <<= 8; numOutputs |= data[i++];
-  numOutputs <<= 8; numOutputs |= data[i++];
-  numOutputs <<= 8; numOutputs |= data[i++];
+  for( lay = 0; lay < numLayers; lay++ ) {
+    layerParams[lay].numNeurons = 0;
+    layerParams[lay].numNeurons <<= 8; layerParams[lay].numNeurons |= data[i++];
+    layerParams[lay].numNeurons <<= 8; layerParams[lay].numNeurons |= data[i++];
+    layerParams[lay].numNeurons <<= 8; layerParams[lay].numNeurons |= data[i++];
+    layerParams[lay].numNeurons <<= 8; layerParams[lay].numNeurons |= data[i++];
+    layerParams[lay].numNeurons <<= 8; layerParams[lay].numNeurons |= data[i++];
+    layerParams[lay].numNeurons <<= 8; layerParams[lay].numNeurons |= data[i++];
+    layerParams[lay].numNeurons <<= 8; layerParams[lay].numNeurons |= data[i++];
+    layerParams[lay].numNeurons <<= 8; layerParams[lay].numNeurons |= data[i++];
 
-  numHiddenConnections = 0;
-  numHiddenConnections <<= 8; numHiddenConnections |= data[i++];
-  numHiddenConnections <<= 8; numHiddenConnections |= data[i++];
-  numHiddenConnections <<= 8; numHiddenConnections |= data[i++];
-  numHiddenConnections <<= 8; numHiddenConnections |= data[i++];
-  numHiddenConnections <<= 8; numHiddenConnections |= data[i++];
-  numHiddenConnections <<= 8; numHiddenConnections |= data[i++];
-  numHiddenConnections <<= 8; numHiddenConnections |= data[i++];
-  numHiddenConnections <<= 8; numHiddenConnections |= data[i++];
-
-  numOutputConnections = 0;
-  numOutputConnections <<= 8; numOutputConnections |= data[i++];
-  numOutputConnections <<= 8; numOutputConnections |= data[i++];
-  numOutputConnections <<= 8; numOutputConnections |= data[i++];
-  numOutputConnections <<= 8; numOutputConnections |= data[i++];
-  numOutputConnections <<= 8; numOutputConnections |= data[i++];
-  numOutputConnections <<= 8; numOutputConnections |= data[i++];
-  numOutputConnections <<= 8; numOutputConnections |= data[i++];
-  numOutputConnections <<= 8; numOutputConnections |= data[i++];
+    layerParams[lay].numConnections = 0;
+    layerParams[lay].numConnections <<= 8; layerParams[lay].numConnections |= data[i++];
+    layerParams[lay].numConnections <<= 8; layerParams[lay].numConnections |= data[i++];
+    layerParams[lay].numConnections <<= 8; layerParams[lay].numConnections |= data[i++];
+    layerParams[lay].numConnections <<= 8; layerParams[lay].numConnections |= data[i++];
+    layerParams[lay].numConnections <<= 8; layerParams[lay].numConnections |= data[i++];
+    layerParams[lay].numConnections <<= 8; layerParams[lay].numConnections |= data[i++];
+    layerParams[lay].numConnections <<= 8; layerParams[lay].numConnections |= data[i++];
+    layerParams[lay].numConnections <<= 8; layerParams[lay].numConnections |= data[i++];
+  }
 
   // Create a network based on the base parameters, but don't initialise it
-  tmp = networkCreate( numInputs, numHidden, numHiddenConnections, numOutputs, numOutputConnections, false );
+  tmp = networkCreate( numInputs, numLayers, layerParams, false );
+  free( layerParams );
+
   if( tmp == NULL ) {
     return NULL;
   }
 
-  // Read hidden layer
-  for( h = 0; h < tmp->hiddenLayer->width; h++ ) {
-    uint64_t seed = 0;
-    seed <<= 8; seed |= data[i++];
-    seed <<= 8; seed |= data[i++];
-    seed <<= 8; seed |= data[i++];
-    seed <<= 8; seed |= data[i++];
-    seed <<= 8; seed |= data[i++];
-    seed <<= 8; seed |= data[i++];
-    seed <<= 8; seed |= data[i++];
-    seed <<= 8; seed |= data[i++];
-    networkSetHiddenSeed( tmp, h, seed );
-  }
+  // Read layers
+  for( lay = 0; lay < numLayers; lay++ ) {
+    for( neur = 0; neur < tmp->layers[lay]->numNeurons; neur++ ) {
+      uint64_t seed = 0;
+      seed <<= 8; seed |= data[i++];
+      seed <<= 8; seed |= data[i++];
+      seed <<= 8; seed |= data[i++];
+      seed <<= 8; seed |= data[i++];
+      seed <<= 8; seed |= data[i++];
+      seed <<= 8; seed |= data[i++];
+      seed <<= 8; seed |= data[i++];
+      seed <<= 8; seed |= data[i++];
+      networkSetLayerSeed( tmp, lay, neur, seed );
 
-  for( h = 0; h < tmp->hiddenLayer->width; h++ ) {
-    for( w = 0; w < tmp->hiddenLayer->numConnections + 1; w++ ) {
-      uint32_t val = 0;
-      val <<= 8; val |= data[i++];
-      val <<= 8; val |= data[i++];
-      val <<= 8; val |= data[i++];
-      val <<= 8; val |= data[i++];
+      for( src = 0; src < tmp->layers[lay]->numConnections + 1; src++ ) {
+	uint32_t val = 0;
+	val <<= 8; val |= data[i++];
+	val <<= 8; val |= data[i++];
+	val <<= 8; val |= data[i++];
+	val <<= 8; val |= data[i++];
 
-      // Implicitly handles the bias
-      float *unPunned = (float*)(&val);
-      networkSetHiddenWeight( tmp, h, w, *unPunned );
+	// Implicitly handles the bias
+	float *unPunned = (float*)(&val);
+	networkSetLayerWeight( tmp, lay, neur, src, *unPunned );
+      }
+
+      networkSetLayerActivation( tmp, lay, neur, (activation_type_t)data[i++] );
     }
-  }
-
-  for( h = 0; h < tmp->hiddenLayer->width; h++ ) {
-    networkSetHiddenActivation( tmp, h, (activation_type_t)data[i++] );
-  }
-
-  // Read output layer
-  for( o = 0; o < tmp->outputLayer->width; o++ ) {
-    uint64_t seed = 0;
-    seed <<= 8; seed |= data[i++];
-    seed <<= 8; seed |= data[i++];
-    seed <<= 8; seed |= data[i++];
-    seed <<= 8; seed |= data[i++];
-    seed <<= 8; seed |= data[i++];
-    seed <<= 8; seed |= data[i++];
-    seed <<= 8; seed |= data[i++];
-    seed <<= 8; seed |= data[i++];
-    networkSetOutputSeed( tmp, o, seed );
-  }
-
-  for( o = 0; o < tmp->outputLayer->width; o++ ) {
-    for( w = 0; w < tmp->outputLayer->numConnections + 1; w++ ) {
-      uint32_t val = 0;
-      val <<= 8; val |= data[i++];
-      val <<= 8; val |= data[i++];
-      val <<= 8; val |= data[i++];
-      val <<= 8; val |= data[i++];
-
-      // Implicitly handles the bias
-      float *unPunned = (float*)(&val);
-      networkSetOutputWeight( tmp, o, w, *unPunned );
-    }
-  }
-
-  for( o = 0; o < tmp->outputLayer->width; o++ ) {
-    networkSetOutputActivation( tmp, o, (activation_type_t)data[i++] );
   }
 
   return tmp;
@@ -630,32 +606,32 @@ network_t *networkUnserialise( uint64_t len, uint8_t *data )
 
 uint64_t networkSerialise( network_t *network, uint8_t **data )
 {
+  assert( network != NULL );
+  assert( data != NULL );
+
   uint64_t length = 0;
   uint8_t *bytes;
 
-  // numInputs, <reserved>, numHidden, numOutputs
-  length += 4 * sizeof(uint64_t);
-  // numHiddenConnections, numOutputConnections
+  uint64_t i, lay, neur, src;
+
+  // numInputs, numLayers
   length += 2 * sizeof(uint64_t);
-  // Hidden seeds
-  length += sizeof(uint64_t) * network->hiddenLayer->width;
-  // Hidden weights
-  length += sizeof(float) * (network->hiddenLayer->width * (network->hiddenLayer->numConnections + 1));
-  // Hidden activations
-  length += network->hiddenLayer->width;
-  // Output seeds
-  length += sizeof(uint64_t) * network->outputLayer->width;
-  // Output weights
-  length += sizeof(float) * (network->outputLayer->width * (network->outputLayer->numConnections + 1));
-  // Output activations
-  length += network->outputLayer->width;
+  // numLayers * (numNeurons, numConnections)
+  length += network->numLayers * 2 * sizeof(uint64_t);
+
+  for( lay = 0; lay < network->numLayers; lay++ ) {
+    // Hidden seeds
+    length += network->layers[lay]->numNeurons * sizeof(uint64_t);
+    // Hidden weights + bias
+    length += (network->layers[lay]->numNeurons * (network->layers[lay]->numConnections + 1)) * sizeof(float);
+    // Hidden activations
+    length += network->layers[lay]->numNeurons;
+  }
 
   bytes = malloc(length);
   if( bytes == NULL ) {
     return 0;
   }
-
-  uint64_t i, h, o, w;
 
   i = 0;
 
@@ -669,224 +645,235 @@ uint64_t networkSerialise( network_t *network, uint8_t **data )
   bytes[i++] = (network->numInputs >>  8) & 0xff;
   bytes[i++] = (network->numInputs >>  0) & 0xff;
 
-  // Reserved, to be used for future multiple hidden layers
-  bytes[i++] = 0;
-  bytes[i++] = 0;
-  bytes[i++] = 0;
-  bytes[i++] = 0;
-  bytes[i++] = 0;
-  bytes[i++] = 0;
-  bytes[i++] = 0;
-  bytes[i++] = 1;
+  bytes[i++] = (network->numLayers >> 56) & 0xff;
+  bytes[i++] = (network->numLayers >> 48) & 0xff;
+  bytes[i++] = (network->numLayers >> 40) & 0xff;
+  bytes[i++] = (network->numLayers >> 32) & 0xff;
+  bytes[i++] = (network->numLayers >> 24) & 0xff;
+  bytes[i++] = (network->numLayers >> 16) & 0xff;
+  bytes[i++] = (network->numLayers >>  8) & 0xff;
+  bytes[i++] = (network->numLayers >>  0) & 0xff;
 
-  bytes[i++] = (network->hiddenLayer->width >> 56) & 0xff;
-  bytes[i++] = (network->hiddenLayer->width >> 48) & 0xff;
-  bytes[i++] = (network->hiddenLayer->width >> 40) & 0xff;
-  bytes[i++] = (network->hiddenLayer->width >> 32) & 0xff;
-  bytes[i++] = (network->hiddenLayer->width >> 24) & 0xff;
-  bytes[i++] = (network->hiddenLayer->width >> 16) & 0xff;
-  bytes[i++] = (network->hiddenLayer->width >>  8) & 0xff;
-  bytes[i++] = (network->hiddenLayer->width >>  0) & 0xff;
+  for( lay = 0; lay < network->numLayers; lay++ ) {
+    bytes[i++] = (network->layers[lay]->numNeurons >> 56) & 0xff;
+    bytes[i++] = (network->layers[lay]->numNeurons >> 48) & 0xff;
+    bytes[i++] = (network->layers[lay]->numNeurons >> 40) & 0xff;
+    bytes[i++] = (network->layers[lay]->numNeurons >> 32) & 0xff;
+    bytes[i++] = (network->layers[lay]->numNeurons >> 24) & 0xff;
+    bytes[i++] = (network->layers[lay]->numNeurons >> 16) & 0xff;
+    bytes[i++] = (network->layers[lay]->numNeurons >>  8) & 0xff;
+    bytes[i++] = (network->layers[lay]->numNeurons >>  0) & 0xff;
 
-  bytes[i++] = (network->outputLayer->width >> 56) & 0xff;
-  bytes[i++] = (network->outputLayer->width >> 48) & 0xff;
-  bytes[i++] = (network->outputLayer->width >> 40) & 0xff;
-  bytes[i++] = (network->outputLayer->width >> 32) & 0xff;
-  bytes[i++] = (network->outputLayer->width >> 24) & 0xff;
-  bytes[i++] = (network->outputLayer->width >> 16) & 0xff;
-  bytes[i++] = (network->outputLayer->width >>  8) & 0xff;
-  bytes[i++] = (network->outputLayer->width >>  0) & 0xff;
-
-  // Connections
-  bytes[i++] = (network->hiddenLayer->numConnections >> 56) & 0xff;
-  bytes[i++] = (network->hiddenLayer->numConnections >> 48) & 0xff;
-  bytes[i++] = (network->hiddenLayer->numConnections >> 40) & 0xff;
-  bytes[i++] = (network->hiddenLayer->numConnections >> 32) & 0xff;
-  bytes[i++] = (network->hiddenLayer->numConnections >> 24) & 0xff;
-  bytes[i++] = (network->hiddenLayer->numConnections >> 16) & 0xff;
-  bytes[i++] = (network->hiddenLayer->numConnections >>  8) & 0xff;
-  bytes[i++] = (network->hiddenLayer->numConnections >>  0) & 0xff;
-
-  bytes[i++] = (network->outputLayer->numConnections >> 56) & 0xff;
-  bytes[i++] = (network->outputLayer->numConnections >> 48) & 0xff;
-  bytes[i++] = (network->outputLayer->numConnections >> 40) & 0xff;
-  bytes[i++] = (network->outputLayer->numConnections >> 32) & 0xff;
-  bytes[i++] = (network->outputLayer->numConnections >> 24) & 0xff;
-  bytes[i++] = (network->outputLayer->numConnections >> 16) & 0xff;
-  bytes[i++] = (network->outputLayer->numConnections >>  8) & 0xff;
-  bytes[i++] = (network->outputLayer->numConnections >>  0) & 0xff;
-
-  // Hidden
-  for( h = 0; h < network->hiddenLayer->width; h++ ) {
-    bytes[i++] = (network->hiddenLayer->seeds[h] >> 56) & 0xff;
-    bytes[i++] = (network->hiddenLayer->seeds[h] >> 48) & 0xff;
-    bytes[i++] = (network->hiddenLayer->seeds[h] >> 40) & 0xff;
-    bytes[i++] = (network->hiddenLayer->seeds[h] >> 32) & 0xff;
-    bytes[i++] = (network->hiddenLayer->seeds[h] >> 24) & 0xff;
-    bytes[i++] = (network->hiddenLayer->seeds[h] >> 16) & 0xff;
-    bytes[i++] = (network->hiddenLayer->seeds[h] >>  8) & 0xff;
-    bytes[i++] = (network->hiddenLayer->seeds[h] >>  0) & 0xff;
+    // Connections
+    bytes[i++] = (network->layers[lay]->numConnections >> 56) & 0xff;
+    bytes[i++] = (network->layers[lay]->numConnections >> 48) & 0xff;
+    bytes[i++] = (network->layers[lay]->numConnections >> 40) & 0xff;
+    bytes[i++] = (network->layers[lay]->numConnections >> 32) & 0xff;
+    bytes[i++] = (network->layers[lay]->numConnections >> 24) & 0xff;
+    bytes[i++] = (network->layers[lay]->numConnections >> 16) & 0xff;
+    bytes[i++] = (network->layers[lay]->numConnections >>  8) & 0xff;
+    bytes[i++] = (network->layers[lay]->numConnections >>  0) & 0xff;
   }
 
-  for( h = 0; h < network->hiddenLayer->width; h++ ) {
-    for( w = 0; w < network->hiddenLayer->numConnections + 1; w++ ) {
-      uint32_t tmp = *((uint32_t*)(&(network->hiddenLayer->weights[h][w])));
-      bytes[i++] = (tmp >> 24) & 0xff;
-      bytes[i++] = (tmp >> 16) & 0xff;
-      bytes[i++] = (tmp >>  8) & 0xff;
-      bytes[i++] = (tmp >>  0) & 0xff;
+  for( lay = 0; lay < network->numLayers; lay++ ) {
+    // Hidden
+    for( neur = 0; neur < network->layers[lay]->numNeurons; neur++ ) {
+      bytes[i++] = (network->layers[lay]->seeds[neur] >> 56) & 0xff;
+      bytes[i++] = (network->layers[lay]->seeds[neur] >> 48) & 0xff;
+      bytes[i++] = (network->layers[lay]->seeds[neur] >> 40) & 0xff;
+      bytes[i++] = (network->layers[lay]->seeds[neur] >> 32) & 0xff;
+      bytes[i++] = (network->layers[lay]->seeds[neur] >> 24) & 0xff;
+      bytes[i++] = (network->layers[lay]->seeds[neur] >> 16) & 0xff;
+      bytes[i++] = (network->layers[lay]->seeds[neur] >>  8) & 0xff;
+      bytes[i++] = (network->layers[lay]->seeds[neur] >>  0) & 0xff;
+
+      for( src = 0; src < network->layers[lay]->numConnections + 1; src++ ) {
+	uint32_t tmp = *((uint32_t*)(&(network->layers[lay]->weights[neur][src])));
+	bytes[i++] = (tmp >> 24) & 0xff;
+	bytes[i++] = (tmp >> 16) & 0xff;
+	bytes[i++] = (tmp >>  8) & 0xff;
+	bytes[i++] = (tmp >>  0) & 0xff;
+      }
+
+      bytes[i++] = (uint8_t)network->layers[lay]->activations[neur];
     }
-  }
-
-  for( h = 0; h < network->hiddenLayer->width; h++ ) {
-    bytes[i++] = (uint8_t)network->hiddenLayer->activations[h];
-  }
-
-  // Output
-  for( o = 0; o < network->outputLayer->width; o++ ) {
-    bytes[i++] = (network->outputLayer->seeds[o] >> 56) & 0xff;
-    bytes[i++] = (network->outputLayer->seeds[o] >> 48) & 0xff;
-    bytes[i++] = (network->outputLayer->seeds[o] >> 40) & 0xff;
-    bytes[i++] = (network->outputLayer->seeds[o] >> 32) & 0xff;
-    bytes[i++] = (network->outputLayer->seeds[o] >> 24) & 0xff;
-    bytes[i++] = (network->outputLayer->seeds[o] >> 16) & 0xff;
-    bytes[i++] = (network->outputLayer->seeds[o] >>  8) & 0xff;
-    bytes[i++] = (network->outputLayer->seeds[o] >>  0) & 0xff;
-  }
-
-  for( o = 0; o < network->outputLayer->width; o++ ) {
-    for( w = 0; w < network->outputLayer->numConnections + 1; w++ ) {
-      uint32_t tmp = *((uint32_t*)(&(network->outputLayer->weights[o][w])));
-      bytes[i++] = (tmp >> 24) & 0xff;
-      bytes[i++] = (tmp >> 16) & 0xff;
-      bytes[i++] = (tmp >>  8) & 0xff;
-      bytes[i++] = (tmp >>  0) & 0xff;
-    }
-  }
-
-  for( o = 0; o < network->outputLayer->width; o++ ) {
-    bytes[i++] = (uint8_t)network->outputLayer->activations[o];
   }
 
   *data = bytes;
   return length;
 }
 
+network_layer_params_t *networkGetLayerParams( network_t *network )
+{
+  assert( network != NULL );
+
+  network_layer_params_t *tmp = malloc( sizeof(network_layer_params_t) * network->numLayers );
+  if( tmp == NULL ) {
+    return NULL;
+  }
+
+  uint64_t i;
+  for( i = 0; i < network->numLayers; i++ ) {
+    tmp[i].numNeurons = network->layers[i]->numNeurons;
+    tmp[i].numConnections = network->layers[i]->numConnections;
+  }
+
+  return tmp;
+}
+
 uint64_t networkGetNumInputs( network_t *network )
 {
+  assert( network != NULL );
   return network->numInputs;
 }
 
-uint64_t networkGetNumHidden( network_t *network )
+uint64_t networkGetNumLayers( network_t *network )
 {
-  return network->hiddenLayer->width;
+  assert( network != NULL );
+  return network->numLayers;
+}
+
+uint64_t networkGetLayerNumNeurons( network_t *network, uint64_t layer )
+{
+  assert( network != NULL );
+  assert( layer < network->numLayers );
+  return network->layers[layer]->numNeurons;
 }
 
 uint64_t networkGetNumOutputs( network_t *network )
 {
-  return network->outputLayer->width;
+  assert( network != NULL );
+  return networkGetLayerNumNeurons( network, network->numLayers - 1 );
 }
 
-uint64_t networkGetNumHiddenConnections( network_t *network )
+uint64_t networkGetLayerNumConnections( network_t *network, uint64_t layer )
 {
-  return network->hiddenLayer->numConnections;
+  assert( network != NULL );
+  assert( layer < network->numLayers );
+  return network->layers[layer]->numConnections;
 }
 
 uint64_t networkGetNumOutputConnections( network_t *network )
 {
-  return network->outputLayer->numConnections;
+  assert( network != NULL );
+  return networkGetLayerNumConnections( network, network->numLayers - 1 );
 }
 
-void networkSetHiddenSeed( network_t *network, uint64_t idx, uint64_t seed )
+void networkSetLayerSeed( network_t *network, uint64_t layer, uint64_t idx, uint64_t seed )
 {
-  if( seed != network->hiddenLayer->seeds[idx] ) {
-    network->hiddenLayer->seeds[idx] = seed;
-    createConnections( network->hiddenLayer->seeds[idx],
-		       network->numInputs,
-		       network->hiddenLayer->numConnections,
-		       network->hiddenLayer->connections[idx] );
+  assert( network != NULL );
+  if( seed != network->layers[layer]->seeds[idx] ) {
+    network->layers[layer]->seeds[idx] = seed;
+    createConnections( network->layers[layer]->seeds[idx],
+		       layer == 0 ? network->numInputs : network->layers[layer-1]->numNeurons,
+		       network->layers[layer]->numConnections,
+		       network->layers[layer]->connections[idx] );
   }
 }
 
-uint64_t networkGetHiddenSeed( network_t *network, uint64_t idx )
+uint64_t networkGetLayerSeed( network_t *network, uint64_t layer, uint64_t idx )
 {
-  return network->hiddenLayer->seeds[idx];
+  assert( network != NULL );
+  assert( layer < network->numLayers );
+  assert( idx < network->layers[layer]->numNeurons );
+
+  return network->layers[layer]->seeds[idx];
 }
 
-void networkSetHiddenBias( network_t *network, uint64_t idx, float bias )
+void networkSetLayerBias( network_t *network, uint64_t layer, uint64_t idx, float bias )
 {
-  network->hiddenLayer->weights[idx][network->hiddenLayer->numConnections] = bias;
+  assert( network != NULL );
+  assert( layer < network->numLayers );
+  assert( idx < network->layers[layer]->numNeurons );
+
+  network->layers[layer]->weights[idx][network->layers[layer]->numConnections] = bias;
 }
 
-float networkGetHiddenBias( network_t *network, uint64_t idx )
+float networkGetLayerBias( network_t *network, uint64_t layer, uint64_t idx )
 {
-  return network->hiddenLayer->weights[idx][network->hiddenLayer->numConnections];
+  assert( network != NULL );
+  assert( layer < network->numLayers );
+  assert( idx < network->layers[layer]->numNeurons );
+
+  return network->layers[layer]->weights[idx][network->layers[layer]->numConnections];
 }
 
-void networkSetHiddenWeight( network_t *network, uint64_t idx, uint64_t source, float weight )
+void networkSetLayerWeight( network_t *network, uint64_t layer, uint64_t idx, uint64_t source, float weight )
 {
-  network->hiddenLayer->weights[idx][source] = weight;
+  assert( network != NULL );
+  assert( layer < network->numLayers );
+  assert( idx < network->layers[layer]->numNeurons );
+  assert( source < network->layers[layer]->numConnections );
+
+  network->layers[layer]->weights[idx][source] = weight;
 }
 
-float networkGetHiddenWeight( network_t *network, uint64_t idx, uint64_t source )
+float networkGetLayerWeight( network_t *network, uint64_t layer, uint64_t idx, uint64_t source )
 {
-  return network->hiddenLayer->weights[idx][source];
+  assert( network != NULL );
+  assert( layer < network->numLayers );
+  assert( idx < network->layers[layer]->numNeurons );
+  assert( source < network->layers[layer]->numConnections );
+
+  return network->layers[layer]->weights[idx][source];
 }
 
-void networkSetHiddenActivation( network_t *network, uint64_t idx, activation_type_t activation )
+void networkSetLayerActivation( network_t *network, uint64_t layer, uint64_t idx, activation_type_t activation )
 {
-  network->hiddenLayer->activations[idx] = activation;
+  assert( network != NULL );
+  assert( layer < network->numLayers );
+  assert( idx < network->layers[layer]->numNeurons );
+
+  network->layers[layer]->activations[idx] = activation;
 }
 
-activation_type_t networkGetHiddenActivation( network_t *network, uint64_t idx )
+activation_type_t networkGetLayerActivation( network_t *network, uint64_t layer, uint64_t idx )
 {
-  return network->hiddenLayer->activations[idx];
+  assert( network != NULL );
+  assert( layer < network->numLayers );
+  assert( idx < network->layers[layer]->numNeurons );
+
+  return network->layers[layer]->activations[idx];
 }
 
 void networkSetOutputSeed( network_t *network, uint64_t idx, uint64_t seed )
 {
-  if( seed != network->outputLayer->seeds[idx] ) {
-    network->outputLayer->seeds[idx] = seed;
-    createConnections( network->outputLayer->seeds[idx],
-		       network->hiddenLayer->width,
-		       network->outputLayer->numConnections,
-		       network->outputLayer->connections[idx] );
-  }
+  networkSetLayerSeed( network, network->numLayers - 1, idx, seed );
 }
 
 uint64_t networkGetOutputSeed( network_t *network, uint64_t idx )
 {
-  return network->outputLayer->seeds[idx];
+  return networkGetLayerSeed( network, network->numLayers - 1, idx );
 }
 
 void networkSetOutputBias( network_t *network, uint64_t idx, float bias )
 {
-  network->outputLayer->weights[idx][network->outputLayer->numConnections] = bias;
+  networkSetLayerBias( network, network->numLayers - 1, idx, bias );
 }
 
 float networkGetOutputBias( network_t *network, uint64_t idx )
 {
-  return network->outputLayer->weights[idx][network->outputLayer->numConnections];
+  return networkGetLayerBias( network, network->numLayers - 1, idx );
 }
 
 void networkSetOutputWeight( network_t *network, uint64_t idx, uint64_t source, float weight )
 {
-  network->outputLayer->weights[idx][source] = weight;
+  networkSetLayerWeight( network, network->numLayers - 1, idx, source, weight );
 }
 
 float networkGetOutputWeight( network_t *network, uint64_t idx, uint64_t source )
 {
-  return network->outputLayer->weights[idx][source];
+  return networkGetLayerWeight( network, network->numLayers - 1, idx, source );
 }
 
 void networkSetOutputActivation( network_t *network, uint64_t idx, activation_type_t activation )
 {
-  network->outputLayer->activations[idx] = activation;
+  networkSetLayerActivation( network, network->numLayers - 1, idx, activation );
 }
 
 activation_type_t networkGetOutputActivation( network_t *network, uint64_t idx )
 {
-  return network->outputLayer->activations[idx];
+  return networkGetLayerActivation( network, network->numLayers - 1, idx );
 }
 
 

@@ -12,25 +12,23 @@ int main( void )
 {
   const uint64_t numRandom = 5;
   const uint64_t numInputs = 2*(640*480) + numRandom;
+  const uint64_t numLayers = 2;
+  network_layer_params_t layerParams[] = {
+    (network_layer_params_t) {500, (uint64_t)(numInputs * 0.05)},
+    (network_layer_params_t) {8, (uint64_t)(500 * 0.5)},
+  };
+  /*
   const uint64_t numHidden = 500; //numInputs/10;
   const uint64_t numHiddenConnections = numInputs * 0.05;
   const uint64_t numOutputs = 8;
   const uint64_t numOutputConnections = numHidden * 0.5;
-
+  */
   uint64_t i;
 
   // Get some better randomness going
   srand((unsigned)(time(NULL)));
 
-  network_t *net = networkCreate( numInputs, numHidden, numHiddenConnections, numOutputs, numOutputConnections, true );
-  network_t *net1 = networkCreate( 2, 2, 2, 1, 2, true );
-  network_t *net2 = networkCreate( 2, 2, 2, 1, 2, true );
-  network_t *netChild = networkCombine( net1, net2 );
-
-  networkSaveFile( net1,     "test1.net" );
-  networkSaveFile( net2,     "test2.net" );
-  networkSaveFile( netChild, "testC.net" );
-
+  network_t *net = networkCreate( numInputs, numLayers, layerParams, true );
   network_t *netFile;
 
   if( net == NULL ) {
@@ -101,9 +99,6 @@ int main( void )
 
   networkDestroy(netFile);
   networkDestroy(net);
-  networkDestroy(net1);
-  networkDestroy(net2);
-  networkDestroy(netChild);
 
   return 0;
 }
