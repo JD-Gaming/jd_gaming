@@ -34,8 +34,10 @@ int main( int argc, char *argv[] )
   char *networkFilename = argv[1];
   char *strGeneration   = argv[2];
   char *strRunningSeed  = argv[3];
+  unsigned long runningSeed = strtoul( strRunningSeed, NULL, 16 );
+  unsigned long generation   = strtoul( strGeneration, NULL, 16 );
 
-  game_t *game = createArkanoid( -1 );
+  game_t *game = createArkanoid( -1, 0 );
   input_t inputs = {0, };
 
   if (game == NULL) {
@@ -66,10 +68,12 @@ int main( int argc, char *argv[] )
 
   printf( "Inputs: %llu\n", (unsigned long long)numInputs );
 
-  unsigned long runningSeed = strtoul( strRunningSeed, NULL, 16 );
-  unsigned long generation   = strtoul( strGeneration, NULL, 16 );
+  // Create new game with correct seeds
+  destroyArkanoid( game );
+
   srand( runningSeed + generation );
   int count = 0;
+  game = createArkanoid( -1, rand() );
   while( game->game_over == false ) {
     printf( "Frame %d\n", count );
     uint64_t i;

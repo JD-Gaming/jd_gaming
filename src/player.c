@@ -24,45 +24,54 @@ int main( void )
   char filename[FILENAME_LEN];
 
   // Temporary game used to get meta data
-  game_t *game = createArkanoid( -1 );
+  game_t *game = createArkanoid( -1, 0 );
   if (game == NULL) {
     fprintf( stderr, "Can't create game\n" );
     return -1;
   }
   input_t inputs = {0, };
 
+  // Number of networks in a population
+  const unsigned int numNets = 75;
+  // Number of games played by each network in a generation
+  const unsigned int numRounds = 20;
+  // Number of generations to play before stopping
+  const unsigned int numGenerations = 2000;
+
+  // Number of game frames to send as input to the networks
+  const uint64_t numFrames = 2;
+  // Number of random values given to the networks as input
   const uint64_t numRandom = 5;
-  const uint64_t numInputs = 2*(game->sensors[0].width * game->sensors[0].height) + numRandom;
+  // Number of total inputs in the network
+  const uint64_t numInputs = numFrames*(game->sensors[0].width * game->sensors[0].height) + numRandom;
+  // Number of layers, including output layer, used by the networks
   const uint64_t numLayers = 4;
-  /*
-  const uint64_t numHidden = 500; //numInputs/10;
-  const uint64_t numHiddenConnections = numInputs * 0.05;
-  const uint64_t numOutputs = 8;
-  const uint64_t numOutputConnections = numHidden * 0.1;
-  */
+  // Description of the layers
   network_layer_params_t layerParams[] = {
     (network_layer_params_t) {400, numInputs * 0.05},
-    (network_layer_params_t) {200, 100},
-    (network_layer_params_t) {50, 100},
-    (network_layer_params_t) {8, 50},
+    (network_layer_params_t) {200, 50},
+    (network_layer_params_t) {25, 100},
+    (network_layer_params_t) {1, 25},
   };
   // Destroy the temporary game
   destroyArkanoid( game );
 
   // Create a population of neural networks
-  const unsigned int numNets = 10;
   printf( "Creating first generation of %u networks\n", numNets );
   population_t *population = populationCreate( numNets, numInputs, numLayers, layerParams, true );
 
   float *ffwData = malloc(numInputs * sizeof(float));
   bzero( ffwData, sizeof(float) * numInputs );
 
-  int32_t bestScore = 0;
-  int     bestNet = -1;
+  int32_t bestScore;
+  int     bestNet;
 
   unsigned long runningSeed = rand();
   unsigned long generation;
-  for( generation = 0; generation < 2000; generation++ ) {
+  for( generation = 0; generation < numGenerations; generation++ ) {
+    bestScore = 0;
+    bestNet = -1;
+
     printf( "Generation %lu\n", generation );
     srand( runningSeed + generation );
 
@@ -70,61 +79,81 @@ int main( void )
 
     int n;
     for( n = 0; n < numNets; n++ ) {
-      printf( "  Network %d\n", n );
+      printf( "  Network %d", n ); fflush(stdout);
 
-      // Create a new game for this player
-      game = createArkanoid( -1 );
-      if (game == NULL) {
-	fprintf( stderr, "Can't create game\n" );
-	return -1;
+      uint64_t netScore = 0;
+      int round;
+
+      for( round = 0; round < numRounds; round++ ) {
+	// Create a new game for this player
+	game = createArkanoid( -1, rand() );
+	if (game == NULL) {
+	  fprintf( stderr, "Can't create game\n" );
+	  return -1;
+	}
+
+	network_t *net = population->networks[n];
+	while (game->game_over == false) {
+	  uint64_t i;
+
+	  // Give network some random values to play with
+	  for( i = 0; i < numRandom; i++ ) {
+	    ffwData[i] = rand() / (float)RAND_MAX;
+	  }
+
+	  // Copy last frame in order to track movement
+	  for( i = numRandom; i < numRandom + (numFrames - 1) * game->sensors[0].height * game->sensors[0].width; i++ ) {
+	    ffwData[i] = ffwData[i + game->sensors[0].height * game->sensors[0].width];
+	  }
+
+	  int x, y;
+	  for (y = 0; y < game->sensors[0].height; y++) {
+	    for (x = 0; x < game->sensors[0].width; x++) {
+	      ffwData[i++] = game->sensors[0].data[y * game->sensors[0].width + x];
+	    }
+	  }
+
+	  // Add AI here
+	  networkRun( net, ffwData );
+
+	  /*
+	  inputs.up         = networkGetOutputValue( net, 0 );
+	  inputs.down       = networkGetOutputValue( net, 1 );
+	  inputs.left       = networkGetOutputValue( net, 2 );
+	  inputs.right      = networkGetOutputValue( net, 3 );
+	  inputs.actions[0] = networkGetOutputValue( net, 4 );
+	  inputs.actions[1] = networkGetOutputValue( net, 5 );
+	  inputs.actions[2] = networkGetOutputValue( net, 6 );
+	  inputs.actions[3] = networkGetOutputValue( net, 7 );
+	  */
+	  float tmpOutput = networkGetOutputValue( net, 0 );
+	  if( tmpOutput > 0 ) {
+	    inputs.left  = tmpOutput;
+	    inputs.right = 0;
+	  } else if( tmpOutput < 0 ) {
+	    inputs.left  = -tmpOutput;
+	    inputs.right = 0;
+	  } else {
+	    inputs.left  = 0;
+	    inputs.right = 0;
+	  }
+
+	  // Send input to game
+	  update( game, inputs );
+	} // End of game loop
+
+	netScore += game->score;
       }
 
-      network_t *net = population->networks[n];
-      int count = 0;
-      while (game->game_over == false) {
-	uint64_t i;
-
-	// Give network some random values to play with
-	for( i = 0; i < numRandom; i++ ) {
-	  ffwData[i] = rand() / (float)RAND_MAX;
-	}
-
-	// Copy last frame in order to track movement
-	for( i = numRandom; i < numRandom + game->sensors[0].height * game->sensors[0].width; i++ ) {
-	  ffwData[i] = ffwData[i + game->sensors[0].height * game->sensors[0].width];
-	}
-
-	int x, y;
-	for (y = 0; y < game->sensors[0].height; y++) {
-	  for (x = 0; x < game->sensors[0].width; x++) {
-	    ffwData[i++] = game->sensors[0].data[y * game->sensors[0].width + x];
-	  }
-	}
-
-	// Add AI here
-	networkRun( net, ffwData );
-
-	inputs.up         = networkGetOutputValue( net, 0 );
-	inputs.down       = networkGetOutputValue( net, 1 );
-	inputs.left       = networkGetOutputValue( net, 2 );
-	inputs.right      = networkGetOutputValue( net, 3 );
-	inputs.actions[0] = networkGetOutputValue( net, 4 );
-	inputs.actions[1] = networkGetOutputValue( net, 5 );
-	inputs.actions[2] = networkGetOutputValue( net, 6 );
-	inputs.actions[3] = networkGetOutputValue( net, 7 );
-
-	// Send input to game
-	update( game, inputs );
-
-	count++;
-      } // End of game loop
-
-      if( game->score > bestScore ) {
-	bestScore = game->score;
+      // If two nets have the same score, let the last one win
+      if( netScore >= bestScore ) {
+	bestScore = netScore;
 	bestNet = n;
       }
 
-      populationSetScore( population, n, game->score );
+      populationSetScore( population, n, netScore );
+
+      printf( " - %llu / %u (%f)\n", (unsigned long long)netScore, numGenerations, netScore / (double)numGenerations );
 
       // Destroy game so we can begin anew with next player
       destroyArkanoid( game );

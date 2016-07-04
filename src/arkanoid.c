@@ -61,6 +61,8 @@ typedef struct game_state_s {
 	// Add more stuff here, obv
 	int counter;
 
+	unsigned int seed;
+
 	point_t player_pos;
 	float   player_speed;
 	uint32_t paddle_width;
@@ -395,7 +397,7 @@ void updateArkanoid(game_t *game, input_t input)
 	}
 }
 
-game_t *createArkanoid(int32_t max_rounds)
+game_t *createArkanoid(int32_t max_rounds, unsigned int seed)
 {
 	local_game_t *tmp = malloc(sizeof(local_game_t));
 	game_state_t *state = NULL;
@@ -440,6 +442,7 @@ game_t *createArkanoid(int32_t max_rounds)
 	tmp->max_rounds = max_rounds;
 
 	state->counter = 0;
+	state->seed = seed;
 
 	// Set up player
 	state->player_pos.x = PADDLE_X_POS;
@@ -449,7 +452,7 @@ game_t *createArkanoid(int32_t max_rounds)
 	state->points_per_hit = POINTS_BASE;
 
 	// Set up ball
-	state->ball_pos.x = BALL_START_X;
+	state->ball_pos.x = rand_r( &(state->seed) ) % (SCREEN_WIDTH - PADDLE_MAX_WIDTH);
 	state->ball_pos.y = BALL_START_Y;
 	state->ball_direction.x = (float)cos(BALL_START_ANGLE) * BALL_SPEED;
 	state->ball_direction.y = (float)-sin(BALL_START_ANGLE) * BALL_SPEED;
