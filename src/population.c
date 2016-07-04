@@ -55,11 +55,13 @@ population_t *populationSpawn( population_t *population )
 {
   int i, done;
 
+  network_layer_params_t *layerParams = networkGetLayerParams( population->networks[0] );
   population_t *tmp = populationCreate( population->size,
 					networkGetNumInputs( population->networks[0] ),
 					networkGetNumLayers( population->networks[0] ),
-					networkGetLayerParams( population->networks[0] ),
+					layerParams,
 					false );
+  free(layerParams);
   if( tmp == NULL ) {
     return NULL;
   }

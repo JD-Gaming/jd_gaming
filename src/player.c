@@ -143,6 +143,8 @@ int main( void )
 	} // End of game loop
 
 	netScore += game->score;
+	// Destroy game so we can begin anew with next player
+	destroyArkanoid( game );
       }
 
       // If two nets have the same score, let the last one win
@@ -154,9 +156,6 @@ int main( void )
       populationSetScore( population, n, netScore );
 
       printf( " - %llu / %u (%f)\n", (unsigned long long)netScore, numGenerations, netScore / (double)numGenerations );
-
-      // Destroy game so we can begin anew with next player
-      destroyArkanoid( game );
     } // End of population loop
 
     printf( "  Best score: %d\n", bestScore );
@@ -170,6 +169,7 @@ int main( void )
     population = nextPop;
   }
 
+  free(ffwData);
   populationDestroy( population );
   
   return 0;
