@@ -803,7 +803,7 @@ void networkSetLayerWeight( network_t *network, uint64_t layer, uint64_t idx, ui
   assert( network != NULL );
   assert( layer < network->numLayers );
   assert( idx < network->layers[layer]->numNeurons );
-  assert( source < network->layers[layer]->numConnections );
+  assert( source < network->layers[layer]->numConnections + 1 ); // Allow bias
 
   network->layers[layer]->weights[idx][source] = weight;
 }
@@ -813,7 +813,7 @@ float networkGetLayerWeight( network_t *network, uint64_t layer, uint64_t idx, u
   assert( network != NULL );
   assert( layer < network->numLayers );
   assert( idx < network->layers[layer]->numNeurons );
-  assert( source < network->layers[layer]->numConnections );
+  assert( source < network->layers[layer]->numConnections + 1 ); // Allow bias
 
   return network->layers[layer]->weights[idx][source];
 }
