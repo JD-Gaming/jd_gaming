@@ -474,9 +474,18 @@ void destroyArkanoid(game_t *game)
 	if (game) {
 		local_game_t *l_game = (local_game_t*)game;
 
-		if (l_game->_internal_game_state)
+		if (l_game->_internal_game_state) {
+			game_state_t *state = l_game->_internal_game_state;
+			if (state->blocks)
+				free(state->blocks);
+
 			free(l_game->_internal_game_state);
-		if (l_game->sensors[0].data)
-			free(l_game->sensors[0].data);
+		}
+		if (l_game->sensors) {
+			if (l_game->sensors[0].data)
+				free(l_game->sensors[0].data);
+			free(l_game->sensors);
+		}
+		free(game);
 	}
 }
