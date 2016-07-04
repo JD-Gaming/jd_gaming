@@ -344,6 +344,7 @@ void networkDestroy( network_t *network )
   for( lay = 0; lay < networkGetNumLayers( network ); lay++ ) {
     destroyLayer( network->layers[lay] );
   }
+  free( network->layers );
   free( network );
 }
 
