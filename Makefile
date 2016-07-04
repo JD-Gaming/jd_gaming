@@ -10,35 +10,48 @@ else
 endif
 
 CCFLAGS = -g -Wall -O3 \
-	-I$(LIBDIR) -Iinclude -I../include
+	-I$(LIBDIR) -Iinclude -I../include -Iai/feedforward -I../ai/feedforward
 
-LDFLAGS = -L$(LIBDIR) -L.
+LDFLAGS = -L$(LIBDIR) -L. -Lai/feedforward -larkanoid -lffann -lm  -Lai/feedforward/pcg-c-0.94/src -L../ai/feedforward/pcg-c-0.94/src -lpcg_random
 ifeq ($(findstring CYGWIN,$(OSNAME)),CYGWIN)
-	LDFLAGS += -lcanvas_cyg -lbmp_cyg
+	LDFLAGS_DRAW += -lcanvas_cyg -lbmp_cyg
 else ifeq ($(findstring Darwin,$(OSNAME)),Darwin)
-	LDFLAGS += ../../libs/canvas/canvas.o
-	LDFLAGS += ../../libs/canvas/get_pixels.o
-	LDFLAGS += ../../libs/canvas/set_pixels.o
-	LDFLAGS += ../../libs/canvas/jpeg.o
-	LDFLAGS += ../../libs/canvas/bmp.o
-	LDFLAGS += ../../libs/canvas/pnm.o
-	LDFLAGS += ../../libs/bmp/bmp.o
+	LDFLAGS_DRAW += ../../libs/canvas/canvas.o
+	LDFLAGS_DRAW += ../../libs/canvas/get_pixels.o
+	LDFLAGS_DRAW += ../../libs/canvas/set_pixels.o
+	LDFLAGS_DRAW += ../../libs/canvas/jpeg.o
+	LDFLAGS_DRAW += ../../libs/canvas/bmp.o
+	LDFLAGS_DRAW += ../../libs/canvas/pnm.o
+	LDFLAGS_DRAW += ../../libs/bmp/bmp.o
 else
-	LDFLAGS += -lcanvas -lbmp
+	LDFLAGS_DRAW += -lcanvas -lbmp
 endif
-LDFLAGS += -ljpeg -lm -lz -lpthread -larkanoid
+LDFLAGS_DRAW += -ljpeg -lz -lpthread
 
-all: game$(EXT)
 
-game$(EXT): player.o $(LIBNAME)
+all: game$(EXT) render$(EXT)
+
+game$(EXT): player.o population.o $(LIBNAME)
 	echo "[LD] $@"
 	${GCC} $(CCFLAGS) $^ $(LDFLAGS) -o $@
+
+render$(EXT): render.o $(LIBNAME)
+	echo "[LD] $@"
+	${GCC} $(CCFLAGS) $^ $(LDFLAGS) $(LDFLAGS_DRAW) -o $@
 
 $(LIBNAME): arkanoid.o geometry.o
 	echo "[AR] $@"
 	ar rcs $@ $^
 
-player.o: src/player.c include/arkanoid.h include/game.h
+player.o: src/player.c include/arkanoid.h include/game.h ai/feedforward/network.h src/population.h
+	echo "[CC] $@"
+	${GCC} $(CCFLAGS) -c $<
+
+render.o: src/render.c include/arkanoid.h include/game.h ai/feedforward/network.h
+	echo "[CC] $@"
+	${GCC} $(CCFLAGS) -c $<
+
+population.o: src/population.c src/population.h ai/feedforward/network.h
 	echo "[CC] $@"
 	${GCC} $(CCFLAGS) -c $<
 
