@@ -6,7 +6,7 @@
 
 #include "canvas.h"
 
-#include "network.h"
+#include "ai/feedforward/network.h"
 
 int main( void )
 {

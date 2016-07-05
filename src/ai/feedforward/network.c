@@ -1,4 +1,4 @@
-#include "network.h"
+#include "ai/feedforward/network.h"
 
 #include <stdio.h>
 #include <stdint.h>

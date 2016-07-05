@@ -1,6 +1,5 @@
 GCC=gcc
 LIBDIR=libs
-LIBNAME=libarkanoid.a
 
 OSNAME:=$(shell uname -s)
 ifeq ($(findstring CYGWIN,$(OSNAME)),CYGWIN)
@@ -10,9 +9,9 @@ else
 endif
 
 CCFLAGS = -g -Wall -O3 \
-	-I$(LIBDIR) -Iinclude -I../include -Iai/feedforward -I../ai/feedforward
+	-I$(LIBDIR) -Iinclude
 
-LDFLAGS = -L$(LIBDIR) -L. -Lai/feedforward -larkanoid -lffann -lm  -Lai/feedforward/pcg-c-0.94/src -L../ai/feedforward/pcg-c-0.94/src -lpcg_random
+LDFLAGS = -L$(LIBDIR) -L. -Larc/ai/feedforward -larkanoid -lffann -lm  -L3pp/pcg-c-0.94/src -L../3pp/pcg-c-0.94/src -lpcg_random
 ifeq ($(findstring CYGWIN,$(OSNAME)),CYGWIN)
 	LDFLAGS_DRAW += -lcanvas_cyg -lbmp_cyg
 else ifeq ($(findstring Darwin,$(OSNAME)),Darwin)
@@ -27,6 +26,9 @@ else
 	LDFLAGS_DRAW += -lcanvas -lbmp
 endif
 LDFLAGS_DRAW += -ljpeg -lz -lpthread
+
+FFANNLIB=src/ai/feedforward/libffan.a
+ARKANOIDLIB=src/game/arkanoid/libarkanoid.a
 
 
 all: game$(EXT) render$(EXT)
