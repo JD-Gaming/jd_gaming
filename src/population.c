@@ -51,6 +51,12 @@ population_t *populationCreate( int numIndividuals,
   return tmp;
 }
 
+void populationReplaceIndividual( population_t *population, int individual, network_t *network )
+{
+  networkDestroy( population->networks[individual] );
+  population->networks[individual] = network;
+}
+
 population_t *populationSpawn( population_t *population )
 {
   int i, done;

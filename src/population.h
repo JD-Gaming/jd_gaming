@@ -18,6 +18,9 @@ population_t *populationCreate( int numIndividuals,
 				network_layer_params_t *layerParams,
 				bool createNets );
 
+// Replace a network, assume it's has the same characteristics as the others
+void populationReplaceIndividual( population_t *population, int individual, network_t *network );
+
 // Spawn a new population from the best individuals of the last one.
 population_t *populationSpawn( population_t *population );
 
