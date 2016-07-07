@@ -1,4 +1,5 @@
 #include <getopt.h>
+#include <string.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -39,6 +40,7 @@ typedef struct neuron_job_s {
 } neuron_job_t;
 
 static bool saveAllNetsAndQuit = false;
+static bool started = false;
 
 static const struct option *getOptlist()
 {
@@ -59,7 +61,12 @@ static const struct option *getOptlist()
 
 static void sigintHandler( int signal )
 {
-  saveAllNetsAndQuit = true;
+  if( started ) {
+    printf( "\nSave and quit after this network is done\n" );
+    saveAllNetsAndQuit = true;
+  } else {
+    exit(0);
+  }
 }
 
 static void update(game_t* game, input_t input) {
@@ -100,21 +107,88 @@ static bool isNetworkCorrect( network_t *net, network_layer_params_t *lp )
 }
 
 // individual == -1 means save all, otherwise save only specified individual
-static void savePopulation( population_t *population, int individual, unsigned int generation, unsigned int seed )
+static void savePopulation( population_t *population, int individual, unsigned int generation, unsigned int seed, unsigned int rounds )
 {
+#define SAVE_NET_FORMAT "brains/0x%08x_0x%08x_%d_%f.ffw"
   char filename[FILENAME_LEN];
   if( individual == -1 ) {
     int i;
     for( i = 0; i < population->size; i++ ) {
-      sprintf( filename, "brains/0x%08x_0x%08x_%d.ffw",
-	       generation, seed, i );
-      networkSaveFile( population->networks[i], filename );
+      sprintf( filename, SAVE_NET_FORMAT,
+	       generation, seed, i, populationGetScore( population, i ) / rounds );
+      networkSaveFile( populationGetIndividual( population, i ), filename );
     }
   } else {
-    sprintf( filename, "brains/0x%08x_0x%08x_%d.ffw",
-	     generation, seed, population->scores[individual] );
-    networkSaveFile( population->networks[individual], filename );
+    sprintf( filename, SAVE_NET_FORMAT,
+	     generation, seed, individual, populationGetScore( population, individual ) / rounds );
+    networkSaveFile( populationGetIndividual( population, individual ), filename );
   }
+}
+
+static int64_t playNetwork( network_t *network,
+			    uint64_t numFrames,  uint64_t numInputs,
+			    unsigned int generation, unsigned int seed,
+			    unsigned int numRounds, uint64_t numRandom )
+{
+  game_t *game;
+  input_t inputs = {0, };
+  float *ffwData = malloc((numRandom + numFrames * numInputs) * sizeof(float));
+  double netScore = 0;
+
+  unsigned int localSeed = seed + generation;
+
+  int round;
+  for( round = 0; round < numRounds; round++ ) {
+    // Create a new game for this player
+    game = createArkanoid( -1, rand_r( &localSeed ) );
+    if (game == NULL) {
+      fprintf( stderr, "Can't create game\n" );
+      free( ffwData );
+      return -1;
+    }
+
+    while (game->game_over == false) {
+      uint64_t i;
+
+      // Give network some random values to play with
+      for( i = 0; i < numRandom; i++ ) {
+	ffwData[i] = rand_r( &localSeed ) / (float)RAND_MAX;
+      }
+
+      // Copy last frame in order to track movement
+      unsigned int size = game->sensors[0].height * game->sensors[0].width;
+      for( i = 0; i+1 < numFrames; i++ ) {
+	memcpy( &ffwData[numRandom + i * size], &ffwData[numRandom + (i+1) * size], size );
+      }
+      // Fetch new frame
+      memcpy( &ffwData[numRandom + i * size], game->sensors[0].data, size );
+
+      // Add AI here
+      networkRun( network, ffwData );
+
+      float tmpOutput = networkGetOutputValue( network, 0 );
+      if( tmpOutput > 0 ) {
+	inputs.left  = tmpOutput;
+	inputs.right = 0;
+      } else if( tmpOutput < 0 ) {
+	inputs.left  = -tmpOutput;
+	inputs.right = 0;
+      } else {
+	inputs.left  = 0;
+	inputs.right = 0;
+      }
+
+      // Send input to game
+      update( game, inputs );
+    } // End of game loop
+
+    netScore += game->score;
+    // Destroy game so we can begin anew with next player
+    destroyArkanoid( game );
+  }
+
+  free(ffwData);
+  return netScore;
 }
 
 int main( int argc, char *argv[] )
@@ -132,6 +206,9 @@ int main( int argc, char *argv[] )
   unsigned int numGenerations = 2000;
   // Which generation to begin with, useful when resuming training
   unsigned int firstGeneration = 0;
+
+  // Register a signal handler that'll save networks when we quit
+  signal( SIGINT, sigintHandler );
 
   int c;
   while( (c = getopt_long (argc, argv, "s:t:g:f:n:r:h",
@@ -167,7 +244,6 @@ int main( int argc, char *argv[] )
     fprintf( stderr, "Can't create game\n" );
     return -1;
   }
-  input_t inputs = {0, };
 
   // Number of game frames to send as input to the networks
   const uint64_t numFrames = 2;
@@ -195,7 +271,7 @@ int main( int argc, char *argv[] )
   // Get the rest of the arguments since they might be networks
   for( ; optind < argc; optind++ ) {
     // Regular arguments, network definition files to seed with
-    printf( "Using file %s (%d)\n", argv[optind], optind );
+    printf( "Using file %s\n", argv[optind] );
 
     // Add networks to population
     network_t *tmp = networkLoadFile( argv[optind] );
@@ -213,101 +289,24 @@ int main( int argc, char *argv[] )
     }
   }
 
-  // Register a signal handler that'll save networks when we quit
-  signal( SIGINT, sigintHandler );
+  double bestScore;
+  int    bestNet;
 
-  float *ffwData = malloc(numInputs * sizeof(float));
-  bzero( ffwData, sizeof(float) * numInputs );
-
-  int32_t bestScore;
-  int     bestNet;
-
+  started = true;
   unsigned long generation;
   for( generation = firstGeneration; generation < numGenerations; generation++ ) {
     bestScore = 0;
     bestNet = -1;
 
     printf( "Generation %lu\n", generation );
-    srand( runningSeed + generation );
 
     populationClearScores( population );
-
     int n;
-    for( n = 0; n < numNets; n++ ) {
+    for( n = 0; n < population->size; n++ ) {
+      double netScore = 0;
       printf( "  Network %d", n ); fflush(stdout);
 
-      uint64_t netScore = 0;
-      int round;
-
-      for( round = 0; round < numRounds; round++ ) {
-	// Create a new game for this player
-	game = createArkanoid( -1, rand() );
-	if (game == NULL) {
-	  fprintf( stderr, "Can't create game\n" );
-	  return -1;
-	}
-
-	network_t *net = population->networks[n];
-	while (game->game_over == false) {
-	  uint64_t i;
-
-	  // Give network some random values to play with
-	  for( i = 0; i < numRandom; i++ ) {
-	    ffwData[i] = rand() / (float)RAND_MAX;
-	  }
-
-	  // Copy last frame in order to track movement
-	  for( i = numRandom; i < numRandom + (numFrames - 1) * game->sensors[0].height * game->sensors[0].width; i++ ) {
-	    ffwData[i] = ffwData[i + game->sensors[0].height * game->sensors[0].width];
-	  }
-
-	  int x, y;
-	  for (y = 0; y < game->sensors[0].height; y++) {
-	    for (x = 0; x < game->sensors[0].width; x++) {
-	      ffwData[i++] = game->sensors[0].data[y * game->sensors[0].width + x];
-	    }
-	  }
-
-	  // Add AI here
-	  networkRun( net, ffwData );
-
-	  /*
-	  inputs.up         = networkGetOutputValue( net, 0 );
-	  inputs.down       = networkGetOutputValue( net, 1 );
-	  inputs.left       = networkGetOutputValue( net, 2 );
-	  inputs.right      = networkGetOutputValue( net, 3 );
-	  inputs.actions[0] = networkGetOutputValue( net, 4 );
-	  inputs.actions[1] = networkGetOutputValue( net, 5 );
-	  inputs.actions[2] = networkGetOutputValue( net, 6 );
-	  inputs.actions[3] = networkGetOutputValue( net, 7 );
-	  */
-	  float tmpOutput = networkGetOutputValue( net, 0 );
-	  if( tmpOutput > 0 ) {
-	    inputs.left  = tmpOutput;
-	    inputs.right = 0;
-	  } else if( tmpOutput < 0 ) {
-	    inputs.left  = -tmpOutput;
-	    inputs.right = 0;
-	  } else {
-	    inputs.left  = 0;
-	    inputs.right = 0;
-	  }
-
-	  // Send input to game
-	  update( game, inputs );
-
-	  if( saveAllNetsAndQuit ) {
-	    printf( "\nSaving all networks and quitting\n" );
-	    savePopulation( population, -1, generation, runningSeed );
-
-	    return 0;
-	  }
-	} // End of game loop
-
-	netScore += game->score;
-	// Destroy game so we can begin anew with next player
-	destroyArkanoid( game );
-      }
+      netScore = playNetwork( populationGetIndividual( population, n ), numFrames, numInputs, generation, runningSeed, numRounds, numRandom );
 
       // If two nets have the same score, let the last one win
       if( netScore >= bestScore ) {
@@ -317,20 +316,23 @@ int main( int argc, char *argv[] )
 
       populationSetScore( population, n, netScore );
 
-      printf( " - %llu / %u (%f)\n", (unsigned long long)netScore, numGenerations, netScore / (double)numGenerations );
+      if( saveAllNetsAndQuit ) {
+	printf( "\nSaving all networks and quitting\n" );
+	savePopulation( population, -1, generation, runningSeed, numRounds );
+	return 0;
+      }
+
+      printf( " - %llu / %u (%f)\n", (unsigned long long)netScore, numRounds, netScore / (double)numRounds );
     } // End of population loop
 
-    printf( "  Best score: %d\n", bestScore );
+    printf( "  Best score: %f\n", bestScore );
 
     // Save the best net here
-    savePopulation( population, bestNet, generation, runningSeed );
+    savePopulation( population, bestNet, generation, runningSeed, numRounds );
 
-    population_t *nextPop = populationSpawn( population );
-    populationDestroy( population );
-    population = nextPop;
+    populationRespawn( population, false );
   }
 
-  free(ffwData);
   populationDestroy( population );
   
   return 0;
