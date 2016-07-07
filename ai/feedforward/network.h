@@ -10,23 +10,28 @@
  *             Type definitions            *
  *******************************************/
 typedef enum activation_type_e {
-  activation_linear   = 0x00, // y = x
-  activation_relu     = 0x01, // y = x > 0 ? x : 0
-  activation_step     = 0x02, // y = x >= 0 ? 1 : 0
-  activation_sigmoid  = 0x03, // y = 1 / (1 + exp(-x))
-  activation_tanh     = 0x04, // y = 2 / (1 + exp(-2x)) - 1
-  activation_atan     = 0x05, // y = atan(x)
-  activation_softsign = 0x06, // y = x / (1 + abs(x))
-  activation_softplus = 0x07, // y = ln(1 + exp(x))
-  activation_gaussian = 0x08, // y = exp(-(x*x))
-  activation_sinc     = 0x09, // y = x == 0 ? 1 : sin(x)/x
-  activation_sin      = 0x0a, // y = sin(x)
+  activation_linear    = 1 <<  0, // y = x
+  activation_relu      = 1 <<  1, // y = x > 0 ? x : 0
+  activation_step      = 1 <<  2, // y = x >= 0 ? 1 : 0
+  activation_sigmoid   = 1 <<  3, // y = 1 / (1 + exp(-x))
+  activation_tanh      = 1 <<  4, // y = 2 / (1 + exp(-2x)) - 1
+  activation_atan      = 1 <<  5, // y = atan(x)
+  activation_softsign  = 1 <<  6, // y = x / (1 + abs(x))
+  activation_softplus  = 1 <<  7, // y = ln(1 + exp(x))
+  activation_gaussian  = 1 <<  8, // y = exp(-(x*x))
+  activation_sinc      = 1 <<  9, // y = x == 0 ? 1 : sin(x)/x
+  activation_sin       = 1 << 10, // y = sin(x)
 
   // Add any new functions above this value.
-  activation_max
+  activation_max_bit   = 1 << 11,
+  activation_max_shift = 11,
+  activation_any       = 0x000
 } activation_type_t;
 
 typedef struct network_layer_s {
+  // A bit mask of the allowed activation functions used for
+  //  initialisation and mutations.
+  uint32_t           allowedActivations;
   // Number of neurons in layer.
   uint64_t           numNeurons;
   // Number of connections each neuron has to previous layer.
@@ -53,6 +58,9 @@ typedef struct network_s {
 typedef struct network_layer_params_s {
   uint64_t numNeurons;
   uint64_t numConnections;
+  // A bit mask of the allowed activation functions used for
+  //  initialisation and mutations.
+  uint32_t allowedActivations;
 } network_layer_params_t;
 
 
@@ -139,5 +147,7 @@ float             networkGetOutputWeight(     network_t *network, uint64_t neuro
 void              networkSetOutputActivation( network_t *network, uint64_t neuron, activation_type_t activation );
 activation_type_t networkGetOutputActivation( network_t *network, uint64_t neuron );
 
+// Print entire network in a JSON like format
+void networkPrint( network_t *network );
 
 #endif

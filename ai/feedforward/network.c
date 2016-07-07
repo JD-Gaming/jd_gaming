@@ -13,9 +13,25 @@
 /*******************************************
  *             Local functions             *
  *******************************************/
+static activation_type_t randomActivation( int32_t allowedActivations )
+{
+  if( allowedActivations != activation_any ) {
+    activation_type_t tmp;
+    do {
+      int shift = rand() % activation_max_shift;
+      tmp = 1 << shift;
+    } while( !((int32_t)tmp & allowedActivations) );
+    return tmp;
+  }
+
+  int shift = rand() % activation_max_shift;
+  return 1 << shift;
+}
+
 // A seed = 0 creates a linear mapping rather than a random one
 static void createConnections( uint64_t seed, uint64_t sourceSize, uint64_t numConnections, uint64_t positions[] )
 {
+  printf( "    createConnections( 0x%016llx, %d, %d )\n", (unsigned long long) seed, (int)sourceSize, (int)numConnections );
   if( seed != 0 ) {
     pcg64_random_t rng;
 
@@ -33,7 +49,7 @@ static void createConnections( uint64_t seed, uint64_t sourceSize, uint64_t numC
   }
 }
 
-static network_layer_t *createLayer( uint64_t size, uint64_t inputs, uint64_t connections, bool initialise )
+static network_layer_t *createLayer( uint64_t size, uint64_t inputs, uint64_t connections, uint32_t allowedActivations, bool initialise )
 {
   uint64_t i, j, last;
   network_layer_t *layer;
@@ -43,6 +59,7 @@ static network_layer_t *createLayer( uint64_t size, uint64_t inputs, uint64_t co
     goto layer_err_object;
   }
 
+  layer->allowedActivations = allowedActivations;
   layer->numNeurons = size;
   layer->numConnections = connections;
 
@@ -52,7 +69,9 @@ static network_layer_t *createLayer( uint64_t size, uint64_t inputs, uint64_t co
     goto layer_err_seeds;
   }
 
-  if( initialise ) {
+  // If number of hidden connections is the same as number of inputs, make a linear connection
+  if( initialise &&
+      layer->numConnections != inputs ) {
     for( i = 0; i < layer->numNeurons; i++ ) {
       layer->seeds[i] = ((uint64_t)rand() << 32) | (uint64_t)rand();
     }
@@ -75,23 +94,14 @@ static network_layer_t *createLayer( uint64_t size, uint64_t inputs, uint64_t co
       goto layer_err_connections_arr;
     }
   }
-  // If number of hidden connections is the same as number of inputs, make a linear connection
-  if( layer->numConnections != inputs &&
-      initialise ) {
-    for( i = 0; i < layer->numNeurons; i++ ) {
-      createConnections( layer->seeds[i],
-			 inputs,
-			 layer->numConnections,
-			 layer->connections[i] );
-    }
-  } else {
-    // Create a linear mapping
-    for( i = 0; i < layer->numNeurons; i++ ) {
-      createConnections( 0,
-			 inputs,
-			 layer->numConnections,
-			 layer->connections[i] );
-    }
+
+  // Create connections even if initialise isn't set, seeds will be 0 so
+  //  initialisation will be linear
+  for( i = 0; i < layer->numNeurons; i++ ) {
+    createConnections( layer->seeds[i],
+		       inputs,
+		       layer->numConnections,
+		       layer->connections[i] );
   }
 
   // Weights
@@ -118,7 +128,7 @@ static network_layer_t *createLayer( uint64_t size, uint64_t inputs, uint64_t co
     goto layer_err_activations;
   }
   for( i = 0; i < layer->numNeurons; i++ ) {
-    layer->activations[i] = (activation_type_t)(rand() % (int)activation_max);
+    layer->activations[i] = randomActivation( layer->allowedActivations );
   }
 
   // Values
@@ -228,7 +238,7 @@ static void networkMutateLayer( network_layer_t *layer, uint64_t numInputs )
 
     // Change a few activation functions
     if( rand() % 10000 == 0 ) {
-      layer->activations[i] = rand() % (int)activation_max;
+      layer->activations[i] = randomActivation( layer->allowedActivations );
     }
   }
 }
@@ -275,7 +285,9 @@ network_t *networkCreate( uint64_t inputs, uint64_t layers, network_layer_params
   }
 
   // Special handling of first layer
-  tmp->layers[0] = createLayer( layerParameters[0].numNeurons, inputs, layerParameters[0].numConnections, initialise );
+  tmp->layers[0] = createLayer( layerParameters[0].numNeurons,
+				inputs, layerParameters[0].numConnections,
+				layerParameters[0].allowedActivations, initialise );
   if( tmp->layers[0] == NULL ) {
     free( tmp->layers );
     free( tmp );
@@ -285,7 +297,9 @@ network_t *networkCreate( uint64_t inputs, uint64_t layers, network_layer_params
   // Create any extra layers
   uint64_t i;
   for( i = 1; i < layers; i++ ) {
-    tmp->layers[i] = createLayer( layerParameters[i].numNeurons, layerParameters[i-1].numNeurons, layerParameters[i].numConnections, initialise );
+    tmp->layers[i] = createLayer( layerParameters[i].numNeurons,
+				  layerParameters[i-1].numNeurons, layerParameters[i].numConnections,
+				  layerParameters[0].allowedActivations, initialise );
     if( tmp->layers[i] == NULL ) {
       do {
 	destroyLayer( tmp->layers[i] );
@@ -543,6 +557,12 @@ network_t *networkUnserialise( uint64_t len, uint8_t *data )
   }
 
   for( lay = 0; lay < numLayers; lay++ ) {
+    layerParams[lay].allowedActivations = 0;
+    layerParams[lay].allowedActivations <<= 8; layerParams[lay].allowedActivations |= data[i++];
+    layerParams[lay].allowedActivations <<= 8; layerParams[lay].allowedActivations |= data[i++];
+    layerParams[lay].allowedActivations <<= 8; layerParams[lay].allowedActivations |= data[i++];
+    layerParams[lay].allowedActivations <<= 8; layerParams[lay].allowedActivations |= data[i++];
+
     layerParams[lay].numNeurons = 0;
     layerParams[lay].numNeurons <<= 8; layerParams[lay].numNeurons |= data[i++];
     layerParams[lay].numNeurons <<= 8; layerParams[lay].numNeurons |= data[i++];
@@ -621,6 +641,8 @@ uint64_t networkSerialise( network_t *network, uint8_t **data )
   length += network->numLayers * 2 * sizeof(uint64_t);
 
   for( lay = 0; lay < network->numLayers; lay++ ) {
+    // Allowed activations
+    length += sizeof(uint32_t);
     // Hidden seeds
     length += network->layers[lay]->numNeurons * sizeof(uint64_t);
     // Hidden weights + bias
@@ -656,6 +678,11 @@ uint64_t networkSerialise( network_t *network, uint8_t **data )
   bytes[i++] = (network->numLayers >>  0) & 0xff;
 
   for( lay = 0; lay < network->numLayers; lay++ ) {
+    bytes[i++] = (network->layers[lay]->allowedActivations >> 24) & 0xff;
+    bytes[i++] = (network->layers[lay]->allowedActivations >> 16) & 0xff;
+    bytes[i++] = (network->layers[lay]->allowedActivations >>  8) & 0xff;
+    bytes[i++] = (network->layers[lay]->allowedActivations >>  0) & 0xff;
+
     bytes[i++] = (network->layers[lay]->numNeurons >> 56) & 0xff;
     bytes[i++] = (network->layers[lay]->numNeurons >> 48) & 0xff;
     bytes[i++] = (network->layers[lay]->numNeurons >> 40) & 0xff;
@@ -688,6 +715,7 @@ uint64_t networkSerialise( network_t *network, uint8_t **data )
       bytes[i++] = (network->layers[lay]->seeds[neur] >>  8) & 0xff;
       bytes[i++] = (network->layers[lay]->seeds[neur] >>  0) & 0xff;
 
+      // WTF HERE?
       for( src = 0; src < network->layers[lay]->numConnections + 1; src++ ) {
 	uint32_t tmp = *((uint32_t*)(&(network->layers[lay]->weights[neur][src])));
 	bytes[i++] = (tmp >> 24) & 0xff;
@@ -699,6 +727,8 @@ uint64_t networkSerialise( network_t *network, uint8_t **data )
       bytes[i++] = (uint8_t)network->layers[lay]->activations[neur];
     }
   }
+
+  printf( "Calculated: %llu, Actual: %llu\n", (unsigned long long)length, (unsigned long long)i );
 
   *data = bytes;
   return length;
@@ -715,6 +745,7 @@ network_layer_params_t *networkGetLayerParams( network_t *network )
 
   uint64_t i;
   for( i = 0; i < network->numLayers; i++ ) {
+    tmp[i].allowedActivations = network->layers[i]->allowedActivations;
     tmp[i].numNeurons = network->layers[i]->numNeurons;
     tmp[i].numConnections = network->layers[i]->numConnections;
   }
@@ -763,6 +794,7 @@ uint64_t networkGetNumOutputConnections( network_t *network )
 void networkSetLayerSeed( network_t *network, uint64_t layer, uint64_t idx, uint64_t seed )
 {
   assert( network != NULL );
+  printf( "  networkSetLayerSeed( %d, %d, 0x%016llx )\n", (int)layer, (int)idx, (unsigned long long) seed );
   if( seed != network->layers[layer]->seeds[idx] ) {
     network->layers[layer]->seeds[idx] = seed;
     createConnections( network->layers[layer]->seeds[idx],
@@ -877,4 +909,49 @@ activation_type_t networkGetOutputActivation( network_t *network, uint64_t idx )
   return networkGetLayerActivation( network, network->numLayers - 1, idx );
 }
 
+void networkPrint( network_t *network )
+{
+  uint64_t i, j, k;
 
+  printf( "net: {\n" );
+  printf( "  numInputs: %d\n", (int)network->numInputs );
+  printf( "  numLayers: %d\n", (int)network->numLayers );
+  printf( "  layers: [\n" );
+  for( i = 0; i < network->numLayers; i++ ) {
+    printf( "    {\n" );
+    printf( "      allowedActivations: 0x%08x,\n", network->layers[i]->allowedActivations );
+    printf( "      numNeurons:         %llu,\n", (unsigned long long)(network->layers[i]->numNeurons) );
+    printf( "      numConnections:     %llu,\n", (unsigned long long)(network->layers[i]->numConnections) );
+    printf( "      seeds: [\n" );
+    for( j = 0; j < network->layers[i]->numNeurons; j++ ) {
+      printf( "        0x%016llx,\n", (unsigned long long)(network->layers[i]->seeds[j]) );
+    }
+    printf( "      ],\n" );
+    printf( "      connections: [\n" );
+    for( j = 0; j < network->layers[i]->numNeurons; j++ ) {
+      printf( "        [\n" );
+      for( k = 0; k < network->layers[i]->numConnections; k++ ) {
+	printf( "          %llu,\n", (unsigned long long)(network->layers[i]->connections[j][k]) );
+      }
+      printf( "        ],\n" );
+    }
+    printf( "      ],\n" );
+    printf( "      weights: [\n" );
+    for( j = 0; j < network->layers[i]->numNeurons; j++ ) {
+      printf( "        [\n" );
+      for( k = 0; k < network->layers[i]->numConnections; k++ ) {
+	printf( "          %f,\n", network->layers[i]->weights[j][k] );
+      }
+      printf( "        ],\n" );
+    }
+    printf( "      ],\n" );
+    printf( "      activations: [\n" );
+    for( j = 0; j < network->layers[i]->numNeurons; j++ ) {
+      printf( "        0x%04x,\n", network->layers[i]->activations[j] );
+    }
+    printf( "      ],\n" );
+    printf( "    },\n" );
+  }
+  printf( "  ]\n" );
+  printf( "}\n" );
+}
