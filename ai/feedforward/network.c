@@ -31,7 +31,6 @@ static activation_type_t randomActivation( int32_t allowedActivations )
 // A seed = 0 creates a linear mapping rather than a random one
 static void createConnections( uint64_t seed, uint64_t sourceSize, uint64_t numConnections, uint64_t positions[] )
 {
-  printf( "    createConnections( 0x%016llx, %d, %d )\n", (unsigned long long) seed, (int)sourceSize, (int)numConnections );
   if( seed != 0 ) {
     pcg64_random_t rng;
 
@@ -478,7 +477,7 @@ network_t *networkLoadFile( char *filename )
 
   buf = malloc(len);
   if( fread( buf, 1, len, file ) != len ) {
-    printf( "Unable to read entire network definition\n" );
+    fprintf( stderr, "Unable to read entire network definition\n" );
   }
 
   tmp = networkUnserialise( len, buf );
@@ -728,8 +727,6 @@ uint64_t networkSerialise( network_t *network, uint8_t **data )
     }
   }
 
-  printf( "Calculated: %llu, Actual: %llu\n", (unsigned long long)length, (unsigned long long)i );
-
   *data = bytes;
   return length;
 }
@@ -794,7 +791,6 @@ uint64_t networkGetNumOutputConnections( network_t *network )
 void networkSetLayerSeed( network_t *network, uint64_t layer, uint64_t idx, uint64_t seed )
 {
   assert( network != NULL );
-  printf( "  networkSetLayerSeed( %d, %d, 0x%016llx )\n", (int)layer, (int)idx, (unsigned long long) seed );
   if( seed != network->layers[layer]->seeds[idx] ) {
     network->layers[layer]->seeds[idx] = seed;
     createConnections( network->layers[layer]->seeds[idx],
