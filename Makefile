@@ -29,9 +29,13 @@ endif
 LDFLAGS_DRAW += -ljpeg -lz -lpthread
 
 
-all: game$(EXT) render$(EXT)
+all: game$(EXT) render$(EXT) addTrainer$(EXT)
 
 game$(EXT): player.o population.o $(LIBNAME)
+	echo "[LD] $@"
+	${GCC} $(CCFLAGS) $^ $(LDFLAGS) -o $@
+
+addTrainer$(EXT): addTrainer.o population.o $(LIBNAME)
 	echo "[LD] $@"
 	${GCC} $(CCFLAGS) $^ $(LDFLAGS) -o $@
 
@@ -44,6 +48,10 @@ $(LIBNAME): arkanoid.o geometry.o
 	ar rcs $@ $^
 
 player.o: src/player.c include/arkanoid.h include/game.h ai/feedforward/network.h src/population.h
+	echo "[CC] $@"
+	${GCC} $(CCFLAGS) -c $<
+
+addTrainer.o: src/addTrainer.c ai/feedforward/network.h src/population.h
 	echo "[CC] $@"
 	${GCC} $(CCFLAGS) -c $<
 
