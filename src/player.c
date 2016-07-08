@@ -132,7 +132,8 @@ static int64_t playNetwork( network_t *network,
 {
   game_t *game;
   input_t inputs = {0, };
-  float *ffwData = malloc((numRandom + numFrames * numInputs) * sizeof(float));
+  float *ffwData = malloc(numInputs * sizeof(float));
+  bzero( ffwData, numInputs * sizeof(float) );
   double netScore = 0;
 
   unsigned int localSeed = seed + generation;
@@ -266,6 +267,10 @@ int main( int argc, char *argv[] )
   // Create a population of neural networks
   printf( "Creating first generation of %u networks\n", numNets );
   population_t *population = populationCreate( numNets, numInputs, numLayers, layerParams, true );
+  if( population == NULL ) {
+    fprintf( stderr, "Can't create population\n" );
+    return -2;
+  }
 
   int i = 0;
   // Get the rest of the arguments since they might be networks
