@@ -214,16 +214,16 @@ static void networkMutateLayer( network_layer_t *layer, uint64_t numInputs )
 
 	case 20 ... 24:
 	  // Multiply a little
-	  layer->weights[i][j] *= (rand() / (float)RAND_MAX) * 2;
+	  layer->weights[i][j] *= 1 + (rand() / (float)RAND_MAX) * 2;
 	  break;
 
 	case 25 ... 29:
 	  // Divide a little
 	  {
-	    float tmpVal = 0;
-	    while( tmpVal == 0 ) {
-	      tmpVal = (rand() / (float)RAND_MAX) * 2;
-	    }
+	    float tmpVal;
+	    do {
+	      tmpVal = 1 + (rand() / (float)RAND_MAX) * 2;
+	    } while( tmpVal == 0 );
 	    layer->weights[i][j] /= tmpVal;
 	    break;
 	  }
@@ -405,7 +405,7 @@ network_t *networkCombine( network_t *mother, network_t *father )
 			    networkGetLayerBias( mother, lay, neur ) :
 			    networkGetLayerBias( father, lay, neur ) );
 
-      for( src = 0; src <= tmp->layers[lay]->numConnections; src++ ) {
+      for( src = 0; src < tmp->layers[lay]->numConnections; src++ ) {
 	networkSetLayerWeight( tmp, lay, neur, src,
 			       rand() & 1 ?
 			       networkGetLayerWeight( mother, lay, neur, src ) :
