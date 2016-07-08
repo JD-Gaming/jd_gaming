@@ -4,7 +4,8 @@
 
 int main( int argc, char *argv[] )
 {
-  if( argc < 1 ) {
+  printf( "%d\n", argc );
+  if( argc < 2 ) {
     fprintf( stderr, "Please provide a neural network definition file.\n" );
     return -1;
   }
