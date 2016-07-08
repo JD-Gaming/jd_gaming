@@ -41,6 +41,9 @@ typedef struct neuron_job_s {
 
 static bool saveAllNetsAndQuit = false;
 static bool started = false;
+static const int maxBits = 8;
+
+#define START_BITS 256
 
 static const struct option *getOptlist()
 {
@@ -51,6 +54,8 @@ static const struct option *getOptlist()
     {"first-gen",   required_argument, NULL, 'f'},
     {"networks",    required_argument, NULL, 'n'},
     {"rounds",      required_argument, NULL, 'r'},
+    {"bits",        required_argument, NULL, 'b'},
+    {"start-bits",  required_argument, NULL, START_BITS},
 
     {"help",     no_argument,       NULL, 'h'},
     {0, 0, 0, 0}
@@ -79,11 +84,15 @@ static void usage( char *progname )
   printf( "Mandatory arguments to long options are mandatory for short options too.\n" );
   printf( "  -t, --threads=INT          number of parallel threads to run\n" );
   printf( "  -s, --seed=HEX             seed value for random generator. \n"
-	  "                             useful to replicate previous results\n" );
+	  "                             Useful to replicate previous results\n" );
   printf( "  -g, --generations=INT      number of generations to train for\n" );
   printf( "  -f, --first-gen=INT        generation to begin at, useful for resuming\n" );
   printf( "  -n, --networks=INT         networks per population\n" );
-  printf( "  -r, --rounds=INT           game rounds each network should play per generation.\n" );
+  printf( "  -r, --rounds=INT           number of additions to perform per generation\n" );
+
+  printf( "  -b, --bits=INT             number of bits in the addition\n" );
+  printf( "      --start-bits=INT       number of bits to compare in the beginning, defaults\n" );
+  printf( "                             to all bits in numbers to add\n" );
 
   printf( "  -h, --help                 display this message and exit\n" );
 }
@@ -105,7 +114,7 @@ static bool isNetworkCorrect( network_t *net, network_layer_params_t *lp )
 // individual == -1 means save all, otherwise save only specified individual
 static void savePopulation( population_t *population, int individual, unsigned int generation, unsigned int seed, unsigned int rounds )
 {
-#define SAVE_NET_FORMAT "adders/0x%08x_0x%08x_%d_%f.ffw"
+#define SAVE_NET_FORMAT "bits/0x%08x_0x%08x_%d_%f.ffw"
   char filename[FILENAME_LEN];
   if( individual == -1 ) {
     int i;
@@ -121,31 +130,31 @@ static void savePopulation( population_t *population, int individual, unsigned i
   }
 }
 
-static float calcScore( uint32_t first, uint32_t second, network_t *network )
+static float calcScore( uint32_t first, uint32_t second, network_t *network, int numBits )
 {
   float score = 0;
   uint32_t result = first + second;
   int i;
 
-  for( i = 0; i < 32; i++ ) {
+  for( i = 0; i < numBits; i++ ) {
     float resBit = (result & (1 << i)) ? 1.0 : 0.0;
 
     // Set score to distance between correct and calculated value.  Might 
     //  change to square of distance layer to make sure large errors are 
     //  attacked more aggressively.
-    score += fabsf( networkGetOutputValue( network, i ) - resBit );
+    float tmpScore = fabsf( networkGetOutputValue( network, i ) - resBit );
+    score += tmpScore;
   }
 
-  // Since the output layer uses only sigmoid functions, the maximum error is 32
   return score;
 }
 
-static int32_t playNetwork( network_t *network,
-			    unsigned int generation, unsigned int seed,
-			    unsigned int numRounds )
+static double playNetwork( network_t *network,
+			   unsigned int generation, unsigned int seed,
+			   unsigned int numRounds, int numBits )
 {
   float ffwData[64];
-  float netScore = 0;
+  double netScore = 0;
 
   unsigned int localSeed = seed + generation;
 
@@ -156,18 +165,18 @@ static int32_t playNetwork( network_t *network,
     second = rand_r( &localSeed );
 
     int i;
-    for( i = 0; i < 32; i++ ) {
+    for( i = 0; i < maxBits; i++ ) {
       ffwData[i] = (first & (1 << i)) ? 1.0 : 0.0;
     }
-    for( i = 0; i < 32; i++ ) {
-      ffwData[i+32] = (second & (1 << i)) ? 1.0 : 0.0;
+    for( i = 0; i < maxBits; i++ ) {
+      ffwData[i+maxBits] = (second & (1 << i)) ? 1.0 : 0.0;
     }
 
     // Create output
     networkRun( network, ffwData );
 
     // Score network
-    netScore += calcScore( first, second, network );
+    netScore += calcScore( first, second, network, numBits );
   }
 
   return netScore;
@@ -188,12 +197,15 @@ int main( int argc, char *argv[] )
   unsigned int numGenerations = 2000;
   // Which generation to begin with, useful when resuming training
   unsigned int firstGeneration = 0;
+  // How many bits to calculate scores for, should allow networks to learn one bit at a time
+  int numBits = 1;
+  float bitIncreaseLimit = 0.15;
 
   // Register a signal handler that'll save networks when we quit
   signal( SIGINT, sigintHandler );
 
   int c;
-  while( (c = getopt_long (argc, argv, "s:t:g:f:n:r:h",
+  while( (c = getopt_long (argc, argv, "s:t:g:f:n:r:b:h",
 			   getOptlist(), NULL)) != -1 ) {
     switch(c) {
     case 's': // Optional
@@ -214,6 +226,13 @@ int main( int argc, char *argv[] )
     case 'r': // Optional
       numRounds = strtoul(optarg, NULL, 10);
       break;
+    case 'b': // Optional
+      fprintf( stderr, "This is actually not setting the number of bits to compare, sorry...\n" );
+      numBits = strtoul(optarg, NULL, 10);
+      break;
+    case START_BITS: // Optional
+      //startBit = strtoul(optarg, NULL, 10);
+      break;
     case 'h': // Special
       usage( argv[0] );
       return 0;
@@ -221,14 +240,14 @@ int main( int argc, char *argv[] )
   }
 
   // Number of total inputs in the network
-  const uint64_t numInputs = 64;
+  const uint64_t numInputs = maxBits * 2;
   // Number of layers, including output layer, used by the networks
   const uint64_t numLayers = 3;
   // Description of the layers
   network_layer_params_t layerParams[] = {
-    (network_layer_params_t) {128,  63, activation_any},
-    (network_layer_params_t) { 64, 127, activation_any},
-    (network_layer_params_t) { 32,  63, activation_sigmoid}
+    (network_layer_params_t) {64, numInputs, activation_sigmoid},
+    (network_layer_params_t) {32, 64,        activation_sigmoid},
+    (network_layer_params_t) { 8, 32,        activation_sigmoid}
   };
 
   // Create a population of neural networks
@@ -264,8 +283,9 @@ int main( int argc, char *argv[] )
 
   started = true;
   unsigned long generation;
+
   for( generation = firstGeneration; generation < numGenerations; generation++ ) {
-    bestScore = minimise ? DBL_MAX : DBL_MIN;
+    bestScore = minimise ? DBL_MAX : -DBL_MAX;
     bestNet = -1;
 
     printf( "Generation %lu\n", generation );
@@ -273,10 +293,10 @@ int main( int argc, char *argv[] )
     populationClearScores( population );
     int n;
     for( n = 0; n < population->size; n++ ) {
-      int64_t netScore = 0;
+      double netScore = 0;
       printf( "  Network %d", n ); fflush(stdout);
 
-      netScore = playNetwork( populationGetIndividual( population, n ), generation, runningSeed, numRounds );
+      netScore = playNetwork( populationGetIndividual( population, n ), generation, runningSeed, numRounds, numBits );
 
       // If two nets have the same score, let the last one win
       if( !minimise && netScore >= bestScore ) {
@@ -295,13 +315,18 @@ int main( int argc, char *argv[] )
 	return 0;
       }
 
-      printf( " - %llu / %u (%f)\n", (unsigned long long)netScore, numRounds, netScore / (double)numRounds );
+      printf( " - %f / %u (%f)\n", netScore, numRounds, netScore / (double)numRounds );
     } // End of population loop
 
     printf( "  Best score: %f (%f)\n", bestScore, bestScore / (double)numRounds);
 
     // Save the best net here
     savePopulation( population, bestNet, generation, runningSeed, numRounds );
+
+    // Increase how many bits to practice on if network is good enough
+    if( (bestScore / (double)numRounds) / numBits < bitIncreaseLimit && numBits < maxBits ) {
+      numBits++;
+    }
 
     populationRespawn( population, minimise );
   }
