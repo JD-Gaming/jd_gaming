@@ -9,6 +9,7 @@
 #include <time.h>
 #include <strings.h>
 #include <signal.h>
+#include <pthread.h>
 
 #include "network.h"
 #include "population.h"
@@ -20,8 +21,8 @@
 typedef struct neuron_job_s {
   // Network to run
   network_t    *network;
-  // Input to network
-  float        *input;
+  // Number of bits to look at
+  int           numBits;
   // Number of game rounds to play
   unsigned int  numRounds;
   // Which generation this is
@@ -30,18 +31,20 @@ typedef struct neuron_job_s {
   unsigned int  seed;
 
   // Place to save the score of the network
-  unsigned int  score;
+  unsigned int *score;
 
   // Signal indicating if the task should stop running a network and pick a new job
-  bool          stop;
+  bool         *stop;
 
   // Set this to true when done
-  bool          done;
+  bool         *done;
 } neuron_job_t;
 
 static bool saveAllNetsAndQuit = false;
 static bool started = false;
 static const int maxBits = 8;
+
+static pthread_mutex_t net_mutex;
 
 #define START_BITS 256
 
@@ -114,7 +117,7 @@ static bool isNetworkCorrect( network_t *net, network_layer_params_t *lp )
 // individual == -1 means save all, otherwise save only specified individual
 static void savePopulation( population_t *population, int individual, unsigned int generation, unsigned int seed, unsigned int rounds )
 {
-#define SAVE_NET_FORMAT "bits/0x%08x_0x%08x_%d_%f.ffw"
+#define SAVE_NET_FORMAT "thread/0x%08x_0x%08x_%d_%f.ffw"
   char filename[FILENAME_LEN];
   if( individual == -1 ) {
     int i;
@@ -151,7 +154,8 @@ static float calcScore( uint32_t first, uint32_t second, network_t *network, int
 
 static double playNetwork( network_t *network,
 			   unsigned int generation, unsigned int seed,
-			   unsigned int numRounds, int numBits )
+			   unsigned int numRounds, int numBits,
+			   bool *stopFlag )
 {
   float ffwData[64];
   double netScore = 0;
@@ -160,6 +164,13 @@ static double playNetwork( network_t *network,
 
   int round;
   for( round = 0; round < numRounds; round++ ) {
+    // Stop and clear score to avoid partial results
+    if( *stopFlag ) {
+      printf( "Stopping job\n" );
+      netScore = 0;
+      break;
+    }
+
     uint32_t first, second;
     first = rand_r( &localSeed );
     second = rand_r( &localSeed );
@@ -180,6 +191,31 @@ static double playNetwork( network_t *network,
   }
 
   return netScore;
+}
+
+
+static void *train_thread( void *arg )
+{
+  jobHandler *jh = arg;
+
+  printf( "Thread started!\n" );
+
+  while( 1 ) {
+    neuron_job_t *job = jobHandlerGetJob( jh );
+    if( job != NULL ) {
+      double score = playNetwork( job->network, job->generation, job->seed, job->numRounds, job->numBits, job->stop );
+      pthread_mutex_lock( &net_mutex );
+      *(job->score) = score;
+      *(job->done) = true;
+      pthread_mutex_unlock( &net_mutex );
+    } else if( saveAllNetsAndQuit == true ) {
+      // If no job left and quit flag is set, quit
+      break;
+    }
+  }
+
+  printf( "Thread stopping!\n" );
+  return NULL;
 }
 
 int main( int argc, char *argv[] )
@@ -239,22 +275,55 @@ int main( int argc, char *argv[] )
     }
   }
 
+  int i = 0;
+
   // Number of total inputs in the network
   const uint64_t numInputs = maxBits * 2;
   // Number of layers, including output layer, used by the networks
   const uint64_t numLayers = 3;
   // Description of the layers
   network_layer_params_t layerParams[] = {
-    (network_layer_params_t) {64, numInputs, activation_sigmoid},
-    (network_layer_params_t) {32, 64,        activation_sigmoid},
-    (network_layer_params_t) { 8, 32,        activation_sigmoid}
+    (network_layer_params_t) {64, numInputs, activation_step},
+    (network_layer_params_t) {32, 64,        activation_step},
+    (network_layer_params_t) { 8, 32,        activation_step}
   };
 
   // Create a population of neural networks
   printf( "Creating first generation of %u networks\n", numNets );
   population_t *population = populationCreate( numNets, numInputs, numLayers, layerParams, true );
+  if( population == NULL ) {
+    fprintf( stderr, "Can't create population\n" );
+    return -2;
+  }
 
-  int i = 0;
+  // Set up threads and stuff
+  jobHandler *jh = jobHandlerCreate( JH_RANDOM, population->size, sizeof(neuron_job_t), NULL );
+
+  pthread_t *threads = malloc( sizeof(*threads) * numThreads );
+  if( !threads ) {
+    free( jh );
+    return -3;
+  }
+  for( i = 0; i < numThreads; i++ ) {
+    if( pthread_create( &threads[i], NULL, train_thread, jh) != 0 ) {
+      free( threads );
+      free( jh );
+      return -4;
+    }
+  }
+
+  neuron_job_t *threadJobs = malloc( numNets * sizeof(neuron_job_t) );
+  if( threadJobs == NULL ) {
+    free( threads );
+    free( jh );
+    return -5;
+  }
+  for( i = 0; i < numNets; i++ ) {
+    threadJobs[i].score      = malloc(sizeof(float));
+    threadJobs[i].stop       = malloc(sizeof(bool));
+    threadJobs[i].done       = malloc(sizeof(bool));
+  }
+
   // Get the rest of the arguments since they might be networks
   for( ; optind < argc; optind++ ) {
     // Regular arguments, network definition files to seed with
@@ -276,6 +345,8 @@ int main( int argc, char *argv[] )
     }
   }
 
+  pthread_mutex_init( &net_mutex, NULL );
+
   double  bestScore;
   int     bestNet;
 
@@ -293,10 +364,79 @@ int main( int argc, char *argv[] )
     populationClearScores( population );
     int n;
     for( n = 0; n < population->size; n++ ) {
-      double netScore = 0;
-      printf( "  Network %d", n ); fflush(stdout);
+      // Take mutex and create jobs here
+      pthread_mutex_lock( &net_mutex );
+      for( n = 0; n < population->size; n++ ) {
+	threadJobs[n].network    = populationGetIndividual( population, n );
+	threadJobs[n].numBits    = numBits;
+	threadJobs[n].numRounds  = numRounds;
+	threadJobs[n].generation = generation;
+	threadJobs[n].seed       = runningSeed;
+	*(threadJobs[n].score)   = 0;
+	*(threadJobs[n].stop)    = false;
+	*(threadJobs[n].done)    = false;
 
-      netScore = playNetwork( populationGetIndividual( population, n ), generation, runningSeed, numRounds, numBits );
+	jobHandlerAddJob( jh, &(threadJobs[n]) );
+      }
+      pthread_mutex_unlock( &net_mutex );
+    }
+
+    // Wait for nets here
+    int numReady = 0;
+    while( 1 ) {
+      int readyCount = 0;
+
+      // Tell threads to quit
+      if( saveAllNetsAndQuit ) {
+	printf( "Stopping networks\n" );
+	for( n = 0; n < population->size; n++ ) {
+	  pthread_mutex_lock( &net_mutex );
+	  *(threadJobs[n].stop) = true;
+	  pthread_mutex_unlock( &net_mutex );
+	}
+
+	// Wait for threads to stop
+	for( n = 0; n < population->size; n++ ) {
+	  if( *(threadJobs[n].done) == false ) {
+	    printf( "Waiting for network %d\n", n );
+	  }
+	  while( *(threadJobs[n].done) == false ) {
+	    sched_yield();
+	  }
+	}
+
+	printf( "Saving all networks and quitting\n" );
+	//savePopulation( population, -1, generation, runningSeed, numRounds );
+	return 0;
+      }
+
+      // See if there are any nets that aren't ready yet and wait for them to complete
+      for( n = 0; n < population->size; n++ ) {
+	pthread_mutex_lock( &net_mutex );
+	if( *(threadJobs[n].done) == true ) {
+	  readyCount++;
+	}
+	pthread_mutex_unlock( &net_mutex );
+      }
+
+      if( readyCount > numReady ) {
+	for( ; numReady < readyCount; numReady++ ) {
+	  printf( "." ); fflush(stdout);
+	}
+      }
+
+      if( readyCount == numNets )
+	break;
+
+      // Let other threads do useful stuff
+      sched_yield();
+    }
+
+    printf( "\n" );
+
+    // All threads are done, tally up results and evolve
+    for( n = 0; n < population->size; n++ ) {
+      double netScore = *(threadJobs[n].score);
 
       // If two nets have the same score, let the last one win
       if( !minimise && netScore >= bestScore ) {
@@ -308,12 +448,6 @@ int main( int argc, char *argv[] )
       }
 
       populationSetScore( population, n, netScore );
-
-      if( saveAllNetsAndQuit ) {
-	printf( "\nSaving all networks and quitting\n" );
-	savePopulation( population, -1, generation, runningSeed, numRounds );
-	return 0;
-      }
 
       printf( " - %f / %u (%f)\n", netScore, numRounds, netScore / (double)numRounds );
     } // End of population loop

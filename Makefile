@@ -12,7 +12,7 @@ endif
 CCFLAGS = -g -Wall -O3 \
 	-I$(LIBDIR) -Iinclude -I../include -Iai/feedforward -I../ai/feedforward
 
-LDFLAGS = -L$(LIBDIR) -L. -Lai/feedforward -larkanoid -lffann -lm  -Lai/feedforward/pcg-c-0.94/src -L../ai/feedforward/pcg-c-0.94/src -lpcg_random -ljobhandler -lprogress
+LDFLAGS = -L$(LIBDIR) -L. -Lai/feedforward -larkanoid -lffann -lm  -Lai/feedforward/pcg-c-0.94/src -L../ai/feedforward/pcg-c-0.94/src -lpcg_random -ljobhandler -lprogress -lpthread
 ifeq ($(findstring CYGWIN,$(OSNAME)),CYGWIN)
 	LDFLAGS_DRAW += -lcanvas_cyg -lbmp_cyg
 else ifeq ($(findstring Darwin,$(OSNAME)),Darwin)
@@ -29,13 +29,13 @@ endif
 LDFLAGS_DRAW += -ljpeg -lz -lpthread
 
 
-all: game$(EXT) render$(EXT) addTrainer$(EXT) inspectNet$(EXT) testArkanoid$(EXT)
+all: game$(EXT) render$(EXT) threadTrainer$(EXT) inspectNet$(EXT) testArkanoid$(EXT)
 
 game$(EXT): player.o population.o $(LIBNAME)
 	echo "[LD] $@"
 	${GCC} $(CCFLAGS) $^ $(LDFLAGS) -o $@
 
-addTrainer$(EXT): addTrainer.o population.o
+threadTrainer$(EXT): addTrainer.o population.o
 	echo "[LD] $@"
 	${GCC} $(CCFLAGS) $^ $(LDFLAGS) -o $@
 
