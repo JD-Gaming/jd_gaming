@@ -12,9 +12,10 @@ endif
 CCFLAGS = -g -Wall -O3 \
 	-I$(LIBDIR) -Iinclude -I../include -Iai/feedforward -I../ai/feedforward
 
-LDFLAGS = -L$(LIBDIR) -L. -Lai/feedforward -larkanoid -lffann -lm  -Lai/feedforward/pcg-c-0.94/src -L../ai/feedforward/pcg-c-0.94/src -lpcg_random -ljobhandler -lprogress -lpthread
+LDFLAGS = -L$(LIBDIR) -L. -Lai/feedforward -larkanoid -lffann -lm  -Lai/feedforward/pcg-c-0.94/src -L../ai/feedforward/pcg-c-0.94/src -lpcg_random -lpthread
 ifeq ($(findstring CYGWIN,$(OSNAME)),CYGWIN)
 	LDFLAGS_DRAW += -lcanvas_cyg -lbmp_cyg
+	LDFLAGS += -ljobhandler
 else ifeq ($(findstring Darwin,$(OSNAME)),Darwin)
 	LDFLAGS_DRAW += ../../libs/canvas/canvas.o
 	LDFLAGS_DRAW += ../../libs/canvas/get_pixels.o
@@ -23,6 +24,7 @@ else ifeq ($(findstring Darwin,$(OSNAME)),Darwin)
 	LDFLAGS_DRAW += ../../libs/canvas/bmp.o
 	LDFLAGS_DRAW += ../../libs/canvas/pnm.o
 	LDFLAGS_DRAW += ../../libs/bmp/bmp.o
+	LDFLAGS += ../../libs/jobhandler/jobhandler.o
 else
 	LDFLAGS_DRAW += -lcanvas -lbmp
 endif
@@ -91,4 +93,4 @@ clean:
 	echo "[RM] $^"
 	-rm *.o game${EXT}
 
-.SILENT:
+#.SILENT:
