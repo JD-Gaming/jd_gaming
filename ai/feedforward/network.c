@@ -13,6 +13,11 @@
 /*******************************************
  *             Local functions             *
  *******************************************/
+static float randomVal( float min, float max )
+{
+  return (rand() / (float)RAND_MAX) * (max - min) + min;
+}
+
 static activation_type_t randomActivation( int32_t allowedActivations )
 {
   if( allowedActivations != activation_any ) {
@@ -116,7 +121,7 @@ static network_layer_t *createLayer( uint64_t size, uint64_t inputs, uint64_t co
     }
     if( initialise ) {
       for( j = 0; j < layer->numConnections + 1; j++ ) {
-	layer->weights[i][j] = ((rand() / (float)RAND_MAX) * 2.0 - 1.0) / layer->numConnections;
+	layer->weights[i][j] = randomVal( -1.0 / layer->numConnections, 1.0 / layer->numConnections );
       }
     }
   }
@@ -204,33 +209,29 @@ static void networkMutateLayer( network_layer_t *layer, uint64_t numInputs )
 	switch( rand() % 31 ) {
 	case 0 ... 9:
 	  // Add a little
-	  layer->weights[i][j] += (rand() / (float)RAND_MAX) * 5;
+	  layer->weights[i][j] += randomVal( 0, 1 );
 	  break;
 
 	case 10 ... 19:
 	  // Remove a little
-	  layer->weights[i][j] -= (rand() / (float)RAND_MAX) * 5;
+	  layer->weights[i][j] -= randomVal( 0, 1 );
 	  break;
 
 	case 20 ... 24:
 	  // Multiply a little
-	  layer->weights[i][j] *= 1 + (rand() / (float)RAND_MAX) * 2;
+	  layer->weights[i][j] *= randomVal( 1, 3 );
 	  break;
 
 	case 25 ... 29:
 	  // Divide a little
 	  {
-	    float tmpVal;
-	    do {
-	      tmpVal = 1 + (rand() / (float)RAND_MAX) * 2;
-	    } while( tmpVal == 0 );
-	    layer->weights[i][j] /= tmpVal;
+	    layer->weights[i][j] /= randomVal( 1, 3 );
 	    break;
 	  }
 
 	case 30:
 	  // Replace completely
-	  layer->weights[i][j] = (rand() / (float)RAND_MAX) * 20 - 10;
+	  layer->weights[i][j] = randomVal( -10, 10 );
 	}
       }
     }
