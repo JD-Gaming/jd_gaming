@@ -184,7 +184,7 @@ population_t *populationSpawn( population_t *population, bool minimise )
     }
 
     tmp->networks[done] = networkCombine( mom, dad );
-    networkMutate( tmp->networks[done] );
+    networkMutate( tmp->networks[done], 0.01 );
   }
 
   return tmp;
@@ -236,7 +236,7 @@ void populationRespawn( population_t *population, bool minimise )
 
     // Magic happens here
     population->elements[done].network = networkCombine( mom, dad );
-    networkMutate( population->elements[done].network );
+    networkMutate( population->elements[done].network, 0.01 );
   }
 }
 
