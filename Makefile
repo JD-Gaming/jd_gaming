@@ -27,6 +27,7 @@ else ifeq ($(findstring Darwin,$(OSNAME)),Darwin)
 	LDFLAGS += ../../libs/jobhandler/jobhandler.o
 else
 	LDFLAGS_DRAW += -lcanvas -lbmp
+	LDFLAGS += -ljobhandler
 endif
 LDFLAGS_DRAW += -ljpeg -lz -lpthread
 
@@ -93,4 +94,4 @@ clean:
 	echo "[RM] $^"
 	-rm *.o game${EXT}
 
-#.SILENT:
+.SILENT:
