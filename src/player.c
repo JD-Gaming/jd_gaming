@@ -2,12 +2,14 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <float.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <math.h>
 #include <time.h>
 #include <strings.h>
 #include <signal.h>
+#include <pthread.h>
 
 #include "arkanoid.h"
 #include "network.h"
@@ -20,27 +22,33 @@
 typedef struct neuron_job_s {
   // Network to run
   network_t    *network;
-  // Input to network
-  float        *input;
   // Number of game rounds to play
   unsigned int  numRounds;
+  // Number of game frames to send to network
+  unsigned int numFrames;
+  // Number of inputs the networks take
+  unsigned int numInputs;
   // Which generation this is
   unsigned int  generation;
   // Seed to initialise random number generation with
   unsigned int  seed;
+  // Number of random bits to add to input array
+  unsigned int  numRandom;
 
   // Place to save the score of the network
-  unsigned int  score;
+  unsigned int *score;
 
   // Signal indicating if the task should stop running a network and pick a new job
-  bool          stop;
+  bool         *stop;
 
   // Set this to true when done
-  bool          done;
+  bool         *done;
 } neuron_job_t;
 
 static bool saveAllNetsAndQuit = false;
 static bool started = false;
+
+static pthread_mutex_t net_mutex;
 
 static const struct option *getOptlist()
 {
@@ -52,7 +60,7 @@ static const struct option *getOptlist()
     {"networks",    required_argument, NULL, 'n'},
     {"rounds",      required_argument, NULL, 'r'},
 
-    {"help",     no_argument,       NULL, 'h'},
+    {"help",        no_argument,       NULL, 'h'},
     {0, 0, 0, 0}
   };
 
@@ -125,10 +133,11 @@ static void savePopulation( population_t *population, int individual, unsigned i
   }
 }
 
-static int64_t playNetwork( network_t *network,
-			    uint64_t numFrames,  uint64_t numInputs,
-			    unsigned int generation, unsigned int seed,
-			    unsigned int numRounds, uint64_t numRandom )
+static double playNetwork( network_t *network,
+			   uint64_t numFrames,  uint64_t numInputs,
+			   unsigned int generation, unsigned int seed,
+			   unsigned int numRounds, uint64_t numRandom,
+			   bool *stopFlag )
 {
   game_t *game;
   input_t inputs = {0, };
@@ -140,6 +149,13 @@ static int64_t playNetwork( network_t *network,
 
   int round;
   for( round = 0; round < numRounds; round++ ) {
+    // Stop and clear score to avoid partial results
+    if( *stopFlag ) {
+      printf( "Stopping job\n" );
+      netScore = 0;
+      break;
+    }
+
     // Create a new game for this player
     game = createArkanoid( -1, rand_r( &localSeed ) );
     if (game == NULL) {
@@ -184,12 +200,42 @@ static int64_t playNetwork( network_t *network,
     } // End of game loop
 
     netScore += game->score;
-    // Destroy game so we can begin anew with next player
+    // Destroy game so we can begin anew with next round
     destroyArkanoid( game );
   }
 
   free(ffwData);
   return netScore;
+}
+
+static void *train_thread( void *arg )
+{
+  jobHandler *jh = arg;
+
+  printf( "Thread started!\n" );
+
+  while( 1 ) {
+    neuron_job_t *job = jobHandlerGetJob( jh );
+    if( job != NULL ) {
+      double score = playNetwork( job->network,
+				  job->numFrames, job->numInputs,
+				  job->generation, job->seed,
+				  job->numRounds, job->numRandom,
+				  job->stop );
+
+      pthread_mutex_lock( &net_mutex );
+      *(job->score) = score;
+      *(job->done) = true;
+      pthread_mutex_unlock( &net_mutex );
+      free( job );
+    } else if( saveAllNetsAndQuit == true ) {
+      // If no job left and quit flag is set, quit
+      break;
+    }
+  }
+
+  printf( "Thread stopping!\n" );
+  return NULL;
 }
 
 int main( int argc, char *argv[] )
@@ -256,10 +302,10 @@ int main( int argc, char *argv[] )
   const uint64_t numLayers = 4;
   // Description of the layers
   network_layer_params_t layerParams[] = {
-    (network_layer_params_t) {400, numInputs * 0.05},
-    (network_layer_params_t) {200, 50},
-    (network_layer_params_t) {25, 100},
-    (network_layer_params_t) {1, 25},
+    (network_layer_params_t) {400, numInputs * 0.05, activation_any},
+    (network_layer_params_t) {200,               50, activation_any},
+    (network_layer_params_t) { 25,              100, activation_any},
+    (network_layer_params_t) {  1,               25, activation_sigmoid },
   };
   // Destroy the temporary game
   destroyArkanoid( game );
@@ -273,6 +319,34 @@ int main( int argc, char *argv[] )
   }
 
   int i = 0;
+  // Set up threads and stuff
+  jobHandler *jh = jobHandlerCreate( JH_RANDOM, population->size, sizeof(neuron_job_t), NULL );
+
+  pthread_t *threads = malloc( sizeof(*threads) * numThreads );
+  if( !threads ) {
+    jobHandlerDestroy( jh );
+    return -3;
+  }
+  for( i = 0; i < numThreads; i++ ) {
+    if( pthread_create( &threads[i], NULL, train_thread, jh) != 0 ) {
+      free( threads );
+      jobHandlerDestroy( jh );
+      return -4;
+    }
+  }
+
+  neuron_job_t *threadJobs = malloc( numNets * sizeof(neuron_job_t) );
+  if( threadJobs == NULL ) {
+    free( threads );
+    jobHandlerDestroy( jh );
+    return -5;
+  }
+  for( i = 0; i < numNets; i++ ) {
+    threadJobs[i].score      = malloc(sizeof(float));
+    threadJobs[i].stop       = malloc(sizeof(bool));
+    threadJobs[i].done       = malloc(sizeof(bool));
+  }
+
   // Get the rest of the arguments since they might be networks
   for( ; optind < argc; optind++ ) {
     // Regular arguments, network definition files to seed with
@@ -294,13 +368,18 @@ int main( int argc, char *argv[] )
     }
   }
 
+  pthread_mutex_init( &net_mutex, NULL );
+
   double bestScore;
   int    bestNet;
+
+  // Higher scores are better
+  bool minimise = false;
 
   started = true;
   unsigned long generation;
   for( generation = firstGeneration; generation < numGenerations; generation++ ) {
-    bestScore = 0;
+    bestScore = minimise ? DBL_MAX : -DBL_MAX;
     bestNet = -1;
 
     printf( "Generation %lu\n", generation );
@@ -308,37 +387,112 @@ int main( int argc, char *argv[] )
     populationClearScores( population );
     int n;
     for( n = 0; n < population->size; n++ ) {
-      double netScore = 0;
-      printf( "  Network %d", n ); fflush(stdout);
+      // Take mutex and create jobs here
+      pthread_mutex_lock( &net_mutex );
+      for( n = 0; n < population->size; n++ ) {
+	threadJobs[n].network    = populationGetIndividual( population, n );
+	threadJobs[n].numRounds  = numRounds;
+	threadJobs[n].numFrames  = numFrames;
+	threadJobs[n].numInputs  = numInputs;
+	threadJobs[n].generation = generation;
+	threadJobs[n].seed       = runningSeed;
+	threadJobs[n].numRandom  = numRandom;
+	*(threadJobs[n].score)   = 0;
+	*(threadJobs[n].stop)    = false;
+	*(threadJobs[n].done)    = false;
 
-      netScore = playNetwork( populationGetIndividual( population, n ), numFrames, numInputs, generation, runningSeed, numRounds, numRandom );
+	jobHandlerAddJob( jh, &(threadJobs[n]) );
+      }
+      pthread_mutex_unlock( &net_mutex );
+    }
+
+    // Wait for nets here
+    int numReady = 0;
+    while( 1 ) {
+      int readyCount = 0;
+
+      // Tell threads to quit
+      if( saveAllNetsAndQuit ) {
+	printf( "Stopping networks\n" );
+	for( n = 0; n < population->size; n++ ) {
+	  pthread_mutex_lock( &net_mutex );
+	  *(threadJobs[n].stop) = true;
+	  pthread_mutex_unlock( &net_mutex );
+	}
+
+	// Wait for threads to stop
+	for( n = 0; n < population->size; n++ ) {
+	  if( *(threadJobs[n].done) == false ) {
+	    printf( "Waiting for network %d\n", n );
+	  }
+	  while( *(threadJobs[n].done) == false ) {
+	    sched_yield();
+	  }
+	}
+
+	printf( "Saving all networks and quitting\n" );
+	savePopulation( population, -1, generation, runningSeed, numRounds );
+
+	free( threadJobs );
+	free( threads );
+	jobHandlerDestroy( jh );
+	return 0;
+      }
+
+      // See if there are any nets that aren't ready yet and wait for them to complete
+      for( n = 0; n < population->size; n++ ) {
+	pthread_mutex_lock( &net_mutex );
+	if( *(threadJobs[n].done) == true ) {
+	  readyCount++;
+	}
+	pthread_mutex_unlock( &net_mutex );
+      }
+
+      if( readyCount > numReady ) {
+	for( ; numReady < readyCount; numReady++ ) {
+	  printf( "." ); fflush(stdout);
+	}
+      }
+
+      if( readyCount == numNets )
+	break;
+
+      // Let other threads do useful stuff
+      sched_yield();
+    }
+
+    printf( "\n" );
+
+    // All threads are done, tally up results and evolve
+    for( n = 0; n < population->size; n++ ) {
+      double netScore = *(threadJobs[n].score);
 
       // If two nets have the same score, let the last one win
-      if( netScore >= bestScore ) {
+      if( !minimise && netScore >= bestScore ) {
+	bestScore = netScore;
+	bestNet = n;
+      } else if( minimise && netScore <= bestScore && netScore >= 0 ) {
 	bestScore = netScore;
 	bestNet = n;
       }
 
       populationSetScore( population, n, netScore );
 
-      if( saveAllNetsAndQuit ) {
-	printf( "\nSaving all networks and quitting\n" );
-	savePopulation( population, -1, generation, runningSeed, numRounds );
-	return 0;
-      }
-
-      printf( " - %llu / %u (%f)\n", (unsigned long long)netScore, numRounds, netScore / (double)numRounds );
+      printf( " - %f / %u (%f)\n", netScore, numRounds, netScore / (double)(numRounds) );
     } // End of population loop
 
-    printf( "  Best score: %f\n", bestScore );
+    printf( "  Best score: %f (%f)\n", bestScore, bestScore / (double)(numRounds) );
 
     // Save the best net here
     savePopulation( population, bestNet, generation, runningSeed, numRounds );
 
-    populationRespawn( population, false );
+    populationRespawn( population, minimise );
   }
 
   populationDestroy( population );
   
+  free( threadJobs );
+  free( threads );
+  jobHandlerDestroy( jh );
   return 0;
 }
