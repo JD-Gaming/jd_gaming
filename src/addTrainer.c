@@ -12,7 +12,6 @@
 #include <signal.h>
 #include <pthread.h>
 
-#include "arkanoid.h"
 #include "network.h"
 #include "population.h"
 #include "jobhandler.h"
@@ -23,18 +22,14 @@
 typedef struct neuron_job_s {
   // Network to run
   network_t    *network;
+  // Number of bits to look at
+  int           numBits;
   // Number of game rounds to play
   unsigned int  numRounds;
-  // Number of game frames to send to network
-  unsigned int numFrames;
-  // Number of inputs the networks take
-  unsigned int numInputs;
   // Which generation this is
   unsigned int  generation;
   // Seed to initialise random number generation with
   unsigned int  seed;
-  // Number of random bits to add to input array
-  unsigned int  numRandom;
 
   // Place to save the score of the network
   unsigned int *score;
@@ -48,8 +43,11 @@ typedef struct neuron_job_s {
 
 static bool saveAllNetsAndQuit = false;
 static bool started = false;
+static const int maxBits = 8;
 
 static pthread_mutex_t net_mutex;
+
+#define START_BITS 256
 
 static const struct option *getOptlist()
 {
@@ -60,6 +58,8 @@ static const struct option *getOptlist()
     {"first-gen",   required_argument, NULL, 'f'},
     {"networks",    required_argument, NULL, 'n'},
     {"rounds",      required_argument, NULL, 'r'},
+    {"bits",        required_argument, NULL, 'b'},
+    {"start-bits",  required_argument, NULL, START_BITS},
 
     {"help",        no_argument,       NULL, 'h'},
     {0, 0, 0, 0}
@@ -78,25 +78,25 @@ static void sigintHandler( int signal )
   }
 }
 
-static void update(game_t* game, input_t input) {
-  game->_update(game, input);
-}
-
 static void usage( char *progname )
 {
   printf( "Usage: %s [OPTION]... [FILE]...\n", progname );
-  printf( "Generate a population of neural networks that play Arkanoid and compete\n"
-	  "against each other in an attempt to learn how to play the game properly.\n\n" );
+  printf( "Generate a population of neural networks that try to learn how to add two\n"
+	  "32 bit integers properly\n\n" );  
   printf( "File arguments will be loaded as neural networks and used to initialise\n"
 	  "the first generation of the population.\n\n" );
   printf( "Mandatory arguments to long options are mandatory for short options too.\n" );
   printf( "  -t, --threads=INT          number of parallel threads to run\n" );
   printf( "  -s, --seed=HEX             seed value for random generator. \n"
-	  "                             useful to replicate previous results\n" );
+	  "                             Useful to replicate previous results\n" );
   printf( "  -g, --generations=INT      number of generations to train for\n" );
   printf( "  -f, --first-gen=INT        generation to begin at, useful for resuming\n" );
   printf( "  -n, --networks=INT         networks per population\n" );
-  printf( "  -r, --rounds=INT           game rounds each network should play per generation.\n" );
+  printf( "  -r, --rounds=INT           number of additions to perform per generation\n" );
+
+  printf( "  -b, --bits=INT             number of bits in the addition\n" );
+  printf( "      --start-bits=INT       number of bits to compare in the beginning, defaults\n" );
+  printf( "                             to all bits in numbers to add\n" );
 
   printf( "  -h, --help                 display this message and exit\n" );
 }
@@ -118,96 +118,82 @@ static bool isNetworkCorrect( network_t *net, network_layer_params_t *lp )
 // individual == -1 means save all, otherwise save only specified individual
 static void savePopulation( population_t *population, int individual, unsigned int generation, unsigned int seed, unsigned int rounds )
 {
-#define SAVE_NET_FORMAT "brains/0x%08x_0x%08x_%d_%f.ffw"
+#define SAVE_NET_FORMAT "allbits/0x%08x_0x%08x_%d_%f.ffw"
   char filename[FILENAME_LEN];
   if( individual == -1 ) {
     int i;
     for( i = 0; i < population->size; i++ ) {
       sprintf( filename, SAVE_NET_FORMAT,
-	       generation, seed, i, populationGetScore( population, i ) / rounds );
+	       generation, seed, i, populationGetScore( population, i ) / (double)(rounds) );
       networkSaveFile( populationGetIndividual( population, i ), filename );
     }
   } else {
     sprintf( filename, SAVE_NET_FORMAT,
-	     generation, seed, individual, populationGetScore( population, individual ) / rounds );
+	     generation, seed, individual, populationGetScore( population, individual ) / (double)(rounds) );
     networkSaveFile( populationGetIndividual( population, individual ), filename );
   }
 }
 
-static double playNetwork( network_t *network,
-			   uint64_t numFrames,  uint64_t numInputs,
-			   unsigned int generation, unsigned int seed,
-			   unsigned int numRounds, uint64_t numRandom,
-			   bool *stopFlag )
+static float calcScore( uint32_t first, uint32_t second, network_t *network, int numBits )
 {
-  game_t *game;
-  input_t inputs = {0, };
-  float *ffwData = malloc(numInputs * sizeof(float));
-  bzero( ffwData, numInputs * sizeof(float) );
-  double netScore = 0;
+  float score = 0;
+  uint32_t result = first + second;
+  int i;
 
-  unsigned int localSeed = seed + generation;
+  for( i = 0; i < numBits; i++ ) {
+    float resBit = (result & (1 << i)) ? 1.0 : 0.0;
 
-  int round;
-  for( round = 0; round < numRounds; round++ ) {
-    // Stop and clear score to avoid partial results
-    if( *stopFlag ) {
-      printf( "Stopping job\n" );
-      netScore = 0;
-      break;
-    }
-
-    // Create a new game for this player
-    game = createArkanoid( -1, rand_r( &localSeed ) );
-    if (game == NULL) {
-      fprintf( stderr, "Can't create game\n" );
-      free( ffwData );
-      return -1;
-    }
-
-    while (game->game_over == false) {
-      uint64_t i;
-
-      // Give network some random values to play with
-      for( i = 0; i < numRandom; i++ ) {
-	ffwData[i] = rand_r( &localSeed ) / (float)RAND_MAX;
-      }
-
-      // Copy last frame in order to track movement
-      unsigned int size = game->sensors[0].height * game->sensors[0].width;
-      for( i = 0; i+1 < numFrames; i++ ) {
-	memcpy( &ffwData[numRandom + i * size], &ffwData[numRandom + (i+1) * size], size );
-      }
-      // Fetch new frame
-      memcpy( &ffwData[numRandom + i * size], game->sensors[0].data, size );
-
-      // Add AI here
-      networkRun( network, ffwData );
-
-      float tmpOutput = networkGetOutputValue( network, 0 );
-      if( tmpOutput > 0 ) {
-	inputs.left  = tmpOutput;
-	inputs.right = 0;
-      } else if( tmpOutput < 0 ) {
-	inputs.left  = -tmpOutput;
-	inputs.right = 0;
-      } else {
-	inputs.left  = 0;
-	inputs.right = 0;
-      }
-
-      // Send input to game
-      update( game, inputs );
-    } // End of game loop
-
-    netScore += game->score;
-    // Destroy game so we can begin anew with next round
-    destroyArkanoid( game );
+    // Set score to distance between correct and calculated value.  Might 
+    //  change to square of distance layer to make sure large errors are 
+    //  attacked more aggressively.
+    float tmpScore = fabsf( networkGetOutputValue( network, i ) - resBit );
+    score += tmpScore;
+  }
+  // Assume that any untrained bits are half wrong
+  for( ; i < maxBits; i++ ) {
+    score += 0.5;
   }
 
-  free(ffwData);
+  return score;
+}
+
+static double playNetwork( network_t *network,
+			   unsigned int generation, unsigned int seed,
+			   unsigned int numRounds, int numBits,
+			   bool *stopFlag )
+{
+  float ffwData[64];
+  double netScore = 0;
+  uint32_t first, second;
+  uint32_t max = (1 << maxBits);
+  for( first = 0; first < max; first++ ) {
+    for( second = 0; second < max; second++ ) {
+      // Stop and clear score to avoid partial results
+      if( *stopFlag ) {
+	printf( "Stopping job\n" );
+	netScore = 0;
+	break;
+      }
+
+      int i;
+      for( i = 0; i < maxBits; i++ ) {
+	ffwData[i] = (first & (1 << i)) ? 1.0 : 0.0;
+      }
+      for( i = 0; i < maxBits; i++ ) {
+	ffwData[i+maxBits] = (second & (1 << i)) ? 1.0 : 0.0;
+      }
+
+      // Create output
+      networkRun( network, ffwData );
+
+      // Score network
+      netScore += calcScore( first, second, network, numBits );
+    }
+  }
+
   return netScore;
 }
+
 
 static void *train_thread( void *arg )
 {
@@ -218,17 +204,11 @@ static void *train_thread( void *arg )
   while( 1 ) {
     neuron_job_t *job = jobHandlerGetJob( jh );
     if( job != NULL ) {
-      double score = playNetwork( job->network,
-				  job->numFrames, job->numInputs,
-				  job->generation, job->seed,
-				  job->numRounds, job->numRandom,
-				  job->stop );
-
+      double score = playNetwork( job->network, job->generation, job->seed, job->numRounds, job->numBits, job->stop );
       pthread_mutex_lock( &net_mutex );
       *(job->score) = score;
       *(job->done) = true;
       pthread_mutex_unlock( &net_mutex );
-      free( job );
     } else if( saveAllNetsAndQuit == true ) {
       // If no job left and quit flag is set, quit
       break;
@@ -254,12 +234,15 @@ int main( int argc, char *argv[] )
   unsigned int numGenerations = 2000;
   // Which generation to begin with, useful when resuming training
   unsigned int firstGeneration = 0;
+  // How many bits to calculate scores for, should allow networks to learn one bit at a time
+  int numBits = 1;
+  float bitIncreaseLimit = 0.15;
 
   // Register a signal handler that'll save networks when we quit
   signal( SIGINT, sigintHandler );
 
   int c;
-  while( (c = getopt_long (argc, argv, "s:t:g:f:n:r:h",
+  while( (c = getopt_long (argc, argv, "s:t:g:f:n:r:b:h",
 			   getOptlist(), NULL)) != -1 ) {
     switch(c) {
     case 's': // Optional
@@ -280,36 +263,31 @@ int main( int argc, char *argv[] )
     case 'r': // Optional
       numRounds = strtoul(optarg, NULL, 10);
       break;
+    case 'b': // Optional
+      fprintf( stderr, "This is actually not setting the number of bits to compare, sorry...\n" );
+      numBits = strtoul(optarg, NULL, 10);
+      break;
+    case START_BITS: // Optional
+      //startBit = strtoul(optarg, NULL, 10);
+      break;
     case 'h': // Special
       usage( argv[0] );
       return 0;
     }
   }
 
-  // Temporary game used to get meta data
-  game_t *game = createArkanoid( -1, 0 );
-  if (game == NULL) {
-    fprintf( stderr, "Can't create game\n" );
-    return -1;
-  }
+  int i = 0;
 
-  // Number of game frames to send as input to the networks
-  const uint64_t numFrames = 2;
-  // Number of random values given to the networks as input
-  const uint64_t numRandom = 5;
   // Number of total inputs in the network
-  const uint64_t numInputs = numFrames*(game->sensors[0].width * game->sensors[0].height) + numRandom;
+  const uint64_t numInputs = maxBits * 2;
   // Number of layers, including output layer, used by the networks
-  const uint64_t numLayers = 4;
+  const uint64_t numLayers = 3;
   // Description of the layers
   network_layer_params_t layerParams[] = {
-    (network_layer_params_t) {400, numInputs * 0.05, activation_any},
-    (network_layer_params_t) {200,               50, activation_any},
-    (network_layer_params_t) { 25,              100, activation_any},
-    (network_layer_params_t) {  1,               25, activation_sigmoid },
+    (network_layer_params_t) {64, numInputs, activation_sigmoid},
+    (network_layer_params_t) {32, 64,        activation_sigmoid},
+    (network_layer_params_t) { 8, 32,        activation_sigmoid}
   };
-  // Destroy the temporary game
-  destroyArkanoid( game );
 
   // Create a population of neural networks
   printf( "Creating first generation of %u networks\n", numNets );
@@ -319,19 +297,18 @@ int main( int argc, char *argv[] )
     return -2;
   }
 
-  int i = 0;
   // Set up threads and stuff
   jobHandler *jh = jobHandlerCreate( JH_RANDOM, population->size, sizeof(neuron_job_t), NULL );
 
   pthread_t *threads = malloc( sizeof(*threads) * numThreads );
   if( !threads ) {
-    jobHandlerDestroy( jh );
+    free( jh );
     return -3;
   }
   for( i = 0; i < numThreads; i++ ) {
     if( pthread_create( &threads[i], NULL, train_thread, jh) != 0 ) {
       free( threads );
-      jobHandlerDestroy( jh );
+      free( jh );
       return -4;
     }
   }
@@ -339,7 +316,7 @@ int main( int argc, char *argv[] )
   neuron_job_t *threadJobs = malloc( numNets * sizeof(neuron_job_t) );
   if( threadJobs == NULL ) {
     free( threads );
-    jobHandlerDestroy( jh );
+    free( jh );
     return -5;
   }
   for( i = 0; i < numNets; i++ ) {
@@ -372,14 +349,14 @@ int main( int argc, char *argv[] )
 
   pthread_mutex_init( &net_mutex, NULL );
 
-  double bestScore;
-  int    bestNet;
+  double  bestScore;
+  int     bestNet;
 
-  // Higher scores are better
-  bool minimise = false;
+  bool minimise = true;
 
   started = true;
   unsigned long generation;
+
   for( generation = firstGeneration; generation < numGenerations; generation++ ) {
     bestScore = minimise ? DBL_MAX : -DBL_MAX;
     bestNet = -1;
@@ -393,12 +370,10 @@ int main( int argc, char *argv[] )
       pthread_mutex_lock( &net_mutex );
       for( n = 0; n < population->size; n++ ) {
 	threadJobs[n].network    = populationGetIndividual( population, n );
+	threadJobs[n].numBits    = numBits;
 	threadJobs[n].numRounds  = numRounds;
-	threadJobs[n].numFrames  = numFrames;
-	threadJobs[n].numInputs  = numInputs;
 	threadJobs[n].generation = generation;
 	threadJobs[n].seed       = runningSeed;
-	threadJobs[n].numRandom  = numRandom;
 	*(threadJobs[n].score)   = 0;
 	*(threadJobs[n].stop)    = false;
 	*(threadJobs[n].done)    = false;
@@ -434,10 +409,6 @@ int main( int argc, char *argv[] )
 
 	printf( "Saving all networks and quitting\n" );
 	savePopulation( population, -1, generation, runningSeed, numRounds );
-
-	free( threadJobs );
-	free( threads );
-	jobHandlerDestroy( jh );
 	return 0;
       }
 
@@ -488,13 +459,15 @@ int main( int argc, char *argv[] )
     // Save the best net here
     savePopulation( population, bestNet, generation, runningSeed, numRounds );
 
+    // Increase how many bits to practice on if network is good enough
+    if( (bestScore / (double)(numRounds)) / numBits < bitIncreaseLimit && numBits < maxBits ) {
+      numBits++;
+    }
+
     populationRespawn( population, minimise );
   }
 
   populationDestroy( population );
   
-  free( threadJobs );
-  free( threads );
-  jobHandlerDestroy( jh );
   return 0;
 }

@@ -12,9 +12,10 @@ endif
 CCFLAGS = -g -Wall -O3 \
 	-I$(LIBDIR) -Iinclude -I../include -Iai/feedforward -I../ai/feedforward
 
-LDFLAGS = -L$(LIBDIR) -L. -Lai/feedforward -larkanoid -lffann -lm  -Lai/feedforward/pcg-c-0.94/src -L../ai/feedforward/pcg-c-0.94/src -lpcg_random
+LDFLAGS = -L$(LIBDIR) -L. -Lai/feedforward -larkanoid -lffann -lm  -Lai/feedforward/pcg-c-0.94/src -L../ai/feedforward/pcg-c-0.94/src -lpcg_random -lpthread
 ifeq ($(findstring CYGWIN,$(OSNAME)),CYGWIN)
 	LDFLAGS_DRAW += -lcanvas_cyg -lbmp_cyg
+	LDFLAGS += -ljobhandler
 else ifeq ($(findstring Darwin,$(OSNAME)),Darwin)
 	LDFLAGS_DRAW += ../../libs/canvas/canvas.o
 	LDFLAGS_DRAW += ../../libs/canvas/get_pixels.o
@@ -23,19 +24,33 @@ else ifeq ($(findstring Darwin,$(OSNAME)),Darwin)
 	LDFLAGS_DRAW += ../../libs/canvas/bmp.o
 	LDFLAGS_DRAW += ../../libs/canvas/pnm.o
 	LDFLAGS_DRAW += ../../libs/bmp/bmp.o
+	LDFLAGS += ../../libs/jobhandler/jobhandler.o
 else
 	LDFLAGS_DRAW += -lcanvas -lbmp
+	LDFLAGS += -ljobhandler
 endif
 LDFLAGS_DRAW += -ljpeg -lz -lpthread
 
 
-all: game$(EXT) render$(EXT)
+all: game$(EXT) render$(EXT) threadTrainer$(EXT) inspectNet$(EXT) testArkanoid$(EXT)
 
 game$(EXT): player.o population.o $(LIBNAME)
 	echo "[LD] $@"
 	${GCC} $(CCFLAGS) $^ $(LDFLAGS) -o $@
 
+threadTrainer$(EXT): addTrainer.o population.o
+	echo "[LD] $@"
+	${GCC} $(CCFLAGS) $^ $(LDFLAGS) -o $@
+
+inspectNet$(EXT): inspectNet.o
+	echo "[LD] $@"
+	${GCC} $(CCFLAGS) $^ $(LDFLAGS) -o $@
+
 render$(EXT): render.o $(LIBNAME)
+	echo "[LD] $@"
+	${GCC} $(CCFLAGS) $^ $(LDFLAGS) $(LDFLAGS_DRAW) -o $@
+
+testArkanoid$(EXT): testArkanoid.o $(LIBNAME)
 	echo "[LD] $@"
 	${GCC} $(CCFLAGS) $^ $(LDFLAGS) $(LDFLAGS_DRAW) -o $@
 
@@ -44,6 +59,18 @@ $(LIBNAME): arkanoid.o geometry.o
 	ar rcs $@ $^
 
 player.o: src/player.c include/arkanoid.h include/game.h ai/feedforward/network.h src/population.h
+	echo "[CC] $@"
+	${GCC} $(CCFLAGS) -c $<
+
+testArkanoid.o: src/testArkanoid.c include/arkanoid.h include/game.h
+	echo "[CC] $@"
+	${GCC} $(CCFLAGS) -c $<
+
+addTrainer.o: src/addTrainer.c ai/feedforward/network.h src/population.h
+	echo "[CC] $@"
+	${GCC} $(CCFLAGS) -c $<
+
+inspectNet.o: src/inspectNet.c ai/feedforward/network.h
 	echo "[CC] $@"
 	${GCC} $(CCFLAGS) -c $<
 
