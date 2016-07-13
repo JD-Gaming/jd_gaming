@@ -59,6 +59,16 @@ jobHandler *jobHandlerCreate( jobHandlerType type,
 
 /**
  *
+ *  Destroys a job handler and clears the memory allocated 
+ *   in its construction.
+ *
+ * \param  jh  IN  Pointer to the relevant jobhandler.
+ *
+ */
+void jobHandlerDestroy( jobHandler *jh );
+
+/**
+ *
  * Asks job handler to retrieve a job description.  The descriptor
  *  will be unlinked from the job queue.  Function call may block if
  *  necessary.
