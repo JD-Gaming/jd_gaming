@@ -1,3 +1,4 @@
+#include <unistd.h>
 #include <getopt.h>
 #include <string.h>
 #include <stdio.h>
@@ -348,7 +349,8 @@ int main( int argc, char *argv[] )
   }
 
   // Get the rest of the arguments since they might be networks
-  for( ; optind < argc; optind++ ) {
+  i = 0;
+  for( ; optind < argc && i < population->size; optind++ ) {
     // Regular arguments, network definition files to seed with
     printf( "Using file %s\n", argv[optind] );
 
@@ -458,7 +460,7 @@ int main( int argc, char *argv[] )
 	break;
 
       // Let other threads do useful stuff
-      sched_yield();
+      usleep( 10000 );
     }
 
     printf( "\n" );

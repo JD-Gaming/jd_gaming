@@ -1,3 +1,4 @@
+#include <unistd.h>
 #include <getopt.h>
 #include <string.h>
 #include <stdio.h>
@@ -163,10 +164,6 @@ static double playNetwork( network_t *network,
 {
   float ffwData[64];
   double netScore = 0;
-
-  unsigned int localSeed = seed + generation;
-
-  int round;
   uint32_t first, second;
   uint32_t max = (1 << maxBits);
   for( first = 0; first < max; first++ ) {
@@ -329,7 +326,8 @@ int main( int argc, char *argv[] )
   }
 
   // Get the rest of the arguments since they might be networks
-  for( ; optind < argc; optind++ ) {
+  i = 0;
+  for( ; optind < argc && i < population->size; optind++ ) {
     // Regular arguments, network definition files to seed with
     printf( "Using file %s\n", argv[optind] );
 
@@ -433,7 +431,7 @@ int main( int argc, char *argv[] )
 	break;
 
       // Let other threads do useful stuff
-      sched_yield();
+      usleep( 10000 );
     }
 
     printf( "\n" );
