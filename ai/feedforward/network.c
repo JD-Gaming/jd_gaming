@@ -197,7 +197,8 @@ static void destroyLayer( network_layer_t *layer )
   free( layer );
 }
 
-static void networkMutateLayer( network_layer_t *layer, uint64_t numInputs )
+// mutateRate is a value between 0 and 1
+static void networkMutateLayer( network_layer_t *layer, double mutateRate )
 {
   uint64_t i, j;
   for( i = 0; i < layer->numNeurons; i++ ) {
@@ -205,7 +206,7 @@ static void networkMutateLayer( network_layer_t *layer, uint64_t numInputs )
 
     // Alter weights a little
     for( j = 0; j < layer->numConnections+1; j++ ) {
-      if( rand() % 10000 == 0 ) {
+      if( rand() / (RAND_MAX + 1.0) < mutateRate ) {
 	switch( rand() % 31 ) {
 	case 0 ... 9:
 	  // Add a little
@@ -237,7 +238,7 @@ static void networkMutateLayer( network_layer_t *layer, uint64_t numInputs )
     }
 
     // Change a few activation functions
-    if( rand() % 10000 == 0 ) {
+    if( rand() / (RAND_MAX + 1.0) < mutateRate ) {
       layer->activations[i] = randomActivation( layer->allowedActivations );
     }
   }
@@ -424,15 +425,15 @@ network_t *networkCombine( network_t *mother, network_t *father )
 }
 
 
-void networkMutate( network_t *network )
+void networkMutate( network_t *network, double mutateRate )
 {
   assert( network != NULL );
 
   uint64_t lay;
 
-  networkMutateLayer( network->layers[0], network->numInputs );
+  networkMutateLayer( network->layers[0], mutateRate );
   for( lay = 1; lay < network->numLayers; lay++ ) {
-    networkMutateLayer( network->layers[lay], network->layers[lay-1]->numNeurons );
+    networkMutateLayer( network->layers[lay], mutateRate );
   }
 }
 

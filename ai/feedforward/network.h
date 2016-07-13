@@ -104,7 +104,8 @@ network_layer_params_t *networkGetLayerParams( network_t *network );
 network_t *networkCombine( network_t *mother, network_t *father );
 
 // Randomly change some weight/bias or connection seed in the network.
-void networkMutate( network_t *network );
+//  <mutateRate> is a value between 0.0 and 1.0, inclusive
+void networkMutate( network_t *network, double mutateRate );
 
 
 /*******************************************
