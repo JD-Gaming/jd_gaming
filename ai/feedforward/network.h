@@ -87,25 +87,25 @@ uint64_t ffnNetworkGetLayerNumConnections( ffn_network_t *network, uint64_t laye
 uint64_t ffnNetworkGetOutputNumConnections( ffn_network_t *network );
 
 // Manipulate a layer.  If a seed is set to 0, the connections will be linear rather than random.
-void              ffnNetworkSetLayerSeed(       ffn_network_t *network, uint64_t layer, uint64_t neuron, uint64_t seed );
-uint64_t          ffnNetworkGetLayerSeed(       ffn_network_t *network, uint64_t layer, uint64_t neuron );
-void              ffnNetworkSetLayerBias(       ffn_network_t *network, uint64_t layer, uint64_t neuron, float bias );
-float             ffnNetworkGetLayerBias(       ffn_network_t *network, uint64_t layer, uint64_t neuron );
-void              ffnNetworkSetLayerWeight(     ffn_network_t *network, uint64_t layer, uint64_t neuron, uint64_t source, float weight );
-float             ffnNetworkGetLayerWeight(     ffn_network_t *network, uint64_t layer, uint64_t neuron, uint64_t source );
-void              ffnNetworkSetLayerActivation( ffn_network_t *network, uint64_t layer, uint64_t neuron, activation_type_t activation );
-activation_type_t ffnNetworkGetLayerActivation( ffn_network_t *network, uint64_t layer, uint64_t neuron );
+void              ffnNetworkSetLayerNeuronSeed(       ffn_network_t *network, uint64_t layer, uint64_t neuron, uint64_t seed );
+uint64_t          ffnNetworkGetLayerNeuronSeed(       ffn_network_t *network, uint64_t layer, uint64_t neuron );
+void              ffnNetworkSetLayerNeuronBias(       ffn_network_t *network, uint64_t layer, uint64_t neuron, float bias );
+float             ffnNetworkGetLayerNeuronBias(       ffn_network_t *network, uint64_t layer, uint64_t neuron );
+void              ffnNetworkSetLayerNeuronWeight(     ffn_network_t *network, uint64_t layer, uint64_t neuron, uint64_t source, float weight );
+float             ffnNetworkGetLayerNeuronWeight(     ffn_network_t *network, uint64_t layer, uint64_t neuron, uint64_t source );
+void              ffnNetworkSetLayerNeuronActivation( ffn_network_t *network, uint64_t layer, uint64_t neuron, activation_type_t activation );
+activation_type_t ffnNetworkGetLayerNeuronActivation( ffn_network_t *network, uint64_t layer, uint64_t neuron );
 
 // These functions are merely aliases for the above functions with the layer index set to the last layer.
 // Manipulate output layer.  If a seed is set to 0, the connections will be linear rather than random.
-void              ffnNetworkSetOutputSeed(       ffn_network_t *network, uint64_t neuron, uint64_t seed );
-uint64_t          ffnNetworkGetOutputSeed(       ffn_network_t *network, uint64_t neuron );
-void              ffnNetworkSetOutputBias(       ffn_network_t *network, uint64_t neuron, float bias );
-float             ffnNetworkGetOutputBias(       ffn_network_t *network, uint64_t neuron );
-void              ffnNetworkSetOutputWeight(     ffn_network_t *network, uint64_t neuron, uint64_t source, float weight );
-float             ffnNetworkGetOutputWeight(     ffn_network_t *network, uint64_t neuron, uint64_t source );
-void              ffnNetworkSetOutputActivation( ffn_network_t *network, uint64_t neuron, activation_type_t activation );
-activation_type_t ffnNetworkGetOutputActivation( ffn_network_t *network, uint64_t neuron );
+void              ffnNetworkSetOutputNeuronSeed(       ffn_network_t *network, uint64_t neuron, uint64_t seed );
+uint64_t          ffnNetworkGetOutputNeuronSeed(       ffn_network_t *network, uint64_t neuron );
+void              ffnNetworkSetOutputNeuronBias(       ffn_network_t *network, uint64_t neuron, float bias );
+float             ffnNetworkGetOutputNeuronBias(       ffn_network_t *network, uint64_t neuron );
+void              ffnNetworkSetOutputNeuronWeight(     ffn_network_t *network, uint64_t neuron, uint64_t source, float weight );
+float             ffnNetworkGetOutputNeuronWeight(     ffn_network_t *network, uint64_t neuron, uint64_t source );
+void              ffnNetworkSetOutputNeuronActivation( ffn_network_t *network, uint64_t neuron, activation_type_t activation );
+activation_type_t ffnNetworkGetOutputNeuronActivation( ffn_network_t *network, uint64_t neuron );
 
 // Print entire network in a JSON like format
 void ffnNetworkPrint( ffn_network_t *network );

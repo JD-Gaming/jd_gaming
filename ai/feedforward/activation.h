@@ -1,6 +1,8 @@
 #ifndef ACTIVATION_H
 #define ACTIVATION_H
 
+#include <stdint.h>
+
 typedef enum activation_type_e {
   activation_linear    = 1 <<  0, // y = x
   activation_relu      = 1 <<  1, // y = x > 0 ? x : 0
@@ -34,5 +36,6 @@ float act_gaussian( float val );
 float act_sinc( float val );
 float act_sin( float val );
 act_func activationToFunction( activation_type_t activation );
+activation_type_t randomActivation( uint32_t allowedActivations );
 
 #endif
