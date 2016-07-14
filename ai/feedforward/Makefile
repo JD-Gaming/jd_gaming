@@ -36,7 +36,7 @@ feedforward$(EXT): libffann.a main.o
 	echo "[LD] $@"
 	${GCC} $(CCFLAGS) $^ $(LDFLAGS) -o $@
 
-libffann.a: network.o
+libffann.a: network.o layer.o neurons.o activation.o
 	echo "[AR] $@"
 	ar rcs $@ $^
 
@@ -44,11 +44,19 @@ main.o: main.c neurons.h network.h
 	echo "[CC] $@"
 	${GCC} $(CCFLAGS) -c $<
 
-neurons.o: neurons.c neurons.h
+activation.o: activation.c activation.h
 	echo "[CC] $@"
 	${GCC} $(CCFLAGS) -c $<
 
-network.o: network.c network.h activation.h
+neurons.o: neurons.c neurons.h activation.h
+	echo "[CC] $@"
+	${GCC} $(CCFLAGS) -c $<
+
+layer.o: layer.c layer.h neurons.h activation.h
+	echo "[CC] $@"
+	${GCC} $(CCFLAGS) -c $<
+
+network.o: network.c network.h neurons.h activation.h
 	echo "[CC] $@"
 	${GCC} $(CCFLAGS) -c $<
 
