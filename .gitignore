@@ -1,7 +1,32 @@
+# Visual studio stuff
 windows/Player/Player/Debug/
 windows/Player/Debug/
 *.sdf
 *.opendb
+
+# Build artefacts
 *.o
 *.a
 *.*~
+
+# Ignore known executables
+game
+game.exe
+inspectNet
+inspectNet.exe
+render
+render.exe
+threadTrainer
+threadTrainer.exe
+testArkanoid
+testArkanoid.exe
+
+# Ignore all the damned subdirectories ...
+*/
+
+# ... except the important ones
+!ai/
+!libs/
+!include/
+!src/
+!windows/
