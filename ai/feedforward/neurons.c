@@ -153,9 +153,15 @@ float ffnNeuronRun( ffn_neuron_t *neuron, float *inputs )
   int i;
   float sum = neuron->bias;
 
-  for( i = 0; i < neuron->numConnections; i++ ) {
-    // TODO: Go through connections array
-    sum += inputs[i] * neuron->weights[i];
+  if( neuron->seed != 0 ) {
+    for( i = 0; i < neuron->numConnections; i++ ) {
+      sum += inputs[i] * neuron->weights[neuron->connections[i]];
+    }
+  } else {
+    // No point in going through a connection redirection layer if there's no redirection
+    for( i = 0; i < neuron->numConnections; i++ ) {
+      sum += inputs[i] * neuron->weights[i];
+    }
   }
 
   return activationToFunction( neuron->activation ) ( sum );
@@ -245,4 +251,12 @@ activation_type_t ffnNeuronGetActivation( ffn_neuron_t *neuron )
   assert( neuron != NULL );
 
   return neuron->activation;
+}
+
+uint64_t ffnNeuronGetConnection( ffn_neuron_t *neuron, uint64_t index )
+{
+  assert( neuron != NULL );
+  assert( index < neuron->numConnections );
+
+  return neuron->connections[index];
 }

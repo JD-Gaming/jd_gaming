@@ -50,11 +50,9 @@ int main( void )
     printf( "New2: {%6.4f, %6.4f} -> %6.4f\n\n", inputArray[0], inputArray[1], ffnNetworkGetOutputValue( net3, 0 ) );
   }
 
-  /*
   ffnNetworkPrint( net1 );
   ffnNetworkPrint( net2 );
   ffnNetworkPrint( net3 );
-  */
 
   ffnNetworkDestroy(net3);
   ffnNetworkDestroy(net2);

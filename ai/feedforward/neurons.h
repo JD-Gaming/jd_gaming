@@ -30,4 +30,6 @@ float             ffnNeuronGetWeight(     ffn_neuron_t *neuron, uint64_t source 
 void              ffnNeuronSetActivation( ffn_neuron_t *neuron, activation_type_t activation );
 activation_type_t ffnNeuronGetActivation( ffn_neuron_t *neuron );
 
+uint64_t          ffnNeuronGetConnection( ffn_neuron_t *neuron, uint64_t index );
+
 #endif

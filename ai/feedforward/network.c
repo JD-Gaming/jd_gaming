@@ -693,21 +693,21 @@ void ffnNetworkPrint( ffn_network_t *network )
       printf( "        0x%016llx,\n", (unsigned long long)(ffnLayerGetNeuronSeed( network->layers[i], j )) );
     }
     printf( "      ],\n" );
-    /*
-      TODO: Fix connections
-
     printf( "      connections: [\n" );
     for( j = 0; j < network->layers[i]->numNeurons; j++ ) {
       printf( "        [\n" );
       for( k = 0; k < network->layers[i]->numConnections; k++ ) {
-	printf( "          %llu,\n", (unsigned long long)(network->layers[i]->neurons[j]->connections[k]) );
+	printf( "          %llu,\n", (unsigned long long)(ffnNeuronGetConnection( network->layers[i]->neurons[j], k )) );
       }
       printf( "        ],\n" );
     }
     printf( "      ],\n" );
-    */
-    printf( "      bias: %f,\n", ffnLayerGetNeuronBias( network->layers[i], j ) );
 
+    printf( "      biases: [\n" );
+    for( j = 0; j < network->layers[i]->numNeurons; j++ ) {
+      printf( "        %f,\n", ffnLayerGetNeuronBias( network->layers[i], j ) );
+    }
+    printf( "      ],\n" );
     printf( "      weights: [\n" );
     for( j = 0; j < network->layers[i]->numNeurons; j++ ) {
       printf( "        [\n" );
