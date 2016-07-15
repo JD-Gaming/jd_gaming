@@ -21,7 +21,7 @@
 
 typedef struct neuron_job_s {
   // Network to run
-  network_t    *network;
+  ffn_network_t    *network;
   // Number of bits to look at
   int           numBits;
   // Number of game rounds to play
@@ -52,16 +52,17 @@ static pthread_mutex_t net_mutex;
 static const struct option *getOptlist()
 {
   static struct option optlist[] = {
-    {"tasks",       required_argument, NULL, 't'},
-    {"seed",        required_argument, NULL, 's'},
-    {"generations", required_argument, NULL, 'g'},
-    {"first-gen",   required_argument, NULL, 'f'},
-    {"networks",    required_argument, NULL, 'n'},
-    {"rounds",      required_argument, NULL, 'r'},
-    {"bits",        required_argument, NULL, 'b'},
-    {"start-bits",  required_argument, NULL, START_BITS},
+    {"tasks",         required_argument, NULL, 't'},
+    {"seed",          required_argument, NULL, 's'},
+    {"generations",   required_argument, NULL, 'g'},
+    {"first-gen",     required_argument, NULL, 'f'},
+    {"networks",      required_argument, NULL, 'n'},
+    {"rounds",        required_argument, NULL, 'r'},
+    {"output-folder", required_argument, NULL, 'o'},
+    {"bits",          required_argument, NULL, 'b'},
+    {"start-bits",    required_argument, NULL, START_BITS},
 
-    {"help",        no_argument,       NULL, 'h'},
+    {"help",          no_argument,       NULL, 'h'},
     {0, 0, 0, 0}
   };
 
@@ -101,14 +102,14 @@ static void usage( char *progname )
   printf( "  -h, --help                 display this message and exit\n" );
 }
 
-static bool isNetworkCorrect( network_t *net, network_layer_params_t *lp )
+static bool isNetworkCorrect( ffn_network_t *net, ffn_layer_params_t *lp )
 {
   int i;
-  for( i = 0; i < networkGetNumLayers( net ); i++ ) {
-    if( networkGetLayerNumNeurons( net, i ) != lp[i].numNeurons )
+  for( i = 0; i < ffnNetworkGetNumLayers( net ); i++ ) {
+    if( ffnNetworkGetLayerNumNeurons( net, i ) != lp[i].numNeurons )
       return false;
 
-    if( networkGetLayerNumConnections( net, i ) != lp[i].numConnections )
+    if( ffnNetworkGetLayerNumConnections( net, i ) != lp[i].numConnections )
       return false;
   }
 
@@ -116,25 +117,27 @@ static bool isNetworkCorrect( network_t *net, network_layer_params_t *lp )
 }
 
 // individual == -1 means save all, otherwise save only specified individual
-static void savePopulation( population_t *population, int individual, unsigned int generation, unsigned int seed, unsigned int rounds )
+static void savePopulation( char *folder, population_t *population, int individual, unsigned int generation, unsigned int seed, unsigned int rounds )
 {
-#define SAVE_NET_FORMAT "allbits/0x%08x_0x%08x_%d_%f.ffw"
+#define SAVE_NET_FORMAT "%s/0x%08x_0x%08x_%d_%f.ffw"
   char filename[FILENAME_LEN];
   if( individual == -1 ) {
     int i;
     for( i = 0; i < population->size; i++ ) {
       sprintf( filename, SAVE_NET_FORMAT,
+	       folder,
 	       generation, seed, i, populationGetScore( population, i ) / (double)(rounds) );
-      networkSaveFile( populationGetIndividual( population, i ), filename );
+      ffnNetworkSaveFile( populationGetIndividual( population, i ), filename );
     }
   } else {
     sprintf( filename, SAVE_NET_FORMAT,
+	     folder,
 	     generation, seed, individual, populationGetScore( population, individual ) / (double)(rounds) );
-    networkSaveFile( populationGetIndividual( population, individual ), filename );
+    ffnNetworkSaveFile( populationGetIndividual( population, individual ), filename );
   }
 }
 
-static float calcScore( uint32_t first, uint32_t second, network_t *network, int numBits )
+static float calcScore( uint32_t first, uint32_t second, ffn_network_t *network, int numBits )
 {
   float score = 0;
   uint32_t result = first + second;
@@ -146,7 +149,7 @@ static float calcScore( uint32_t first, uint32_t second, network_t *network, int
     // Set score to distance between correct and calculated value.  Might 
     //  change to square of distance layer to make sure large errors are 
     //  attacked more aggressively.
-    float tmpScore = fabsf( networkGetOutputValue( network, i ) - resBit );
+    float tmpScore = fabsf( ffnNetworkGetOutputValue( network, i ) - resBit );
     score += tmpScore;
   }
   // Assume that any untrained bits are half wrong
@@ -157,7 +160,7 @@ static float calcScore( uint32_t first, uint32_t second, network_t *network, int
   return score;
 }
 
-static double playNetwork( network_t *network,
+static double playNetwork( ffn_network_t *network,
 			   unsigned int generation, unsigned int seed,
 			   unsigned int numRounds, int numBits,
 			   bool *stopFlag )
@@ -184,7 +187,7 @@ static double playNetwork( network_t *network,
       }
 
       // Create output
-      networkRun( network, ffwData );
+      ffnNetworkRun( network, ffwData );
 
       // Score network
       netScore += calcScore( first, second, network, numBits );
@@ -221,6 +224,8 @@ static void *train_thread( void *arg )
 
 int main( int argc, char *argv[] )
 {
+  // Place to store network definitions
+  char *outputFolder = ".";
   // Get some better randomness going
   srand((unsigned)(time(NULL)));
   unsigned long runningSeed = rand();
@@ -242,7 +247,7 @@ int main( int argc, char *argv[] )
   signal( SIGINT, sigintHandler );
 
   int c;
-  while( (c = getopt_long (argc, argv, "s:t:g:f:n:r:b:h",
+  while( (c = getopt_long (argc, argv, "s:t:g:f:n:r:b:o:h",
 			   getOptlist(), NULL)) != -1 ) {
     switch(c) {
     case 's': // Optional
@@ -262,6 +267,9 @@ int main( int argc, char *argv[] )
       break;
     case 'r': // Optional
       numRounds = strtoul(optarg, NULL, 10);
+      break;
+    case 'o': // Optional
+      outputFolder = optarg;
       break;
     case 'b': // Optional
       fprintf( stderr, "This is actually not setting the number of bits to compare, sorry...\n" );
@@ -283,10 +291,10 @@ int main( int argc, char *argv[] )
   // Number of layers, including output layer, used by the networks
   const uint64_t numLayers = 3;
   // Description of the layers
-  network_layer_params_t layerParams[] = {
-    (network_layer_params_t) {64, numInputs, activation_sigmoid},
-    (network_layer_params_t) {32, 64,        activation_sigmoid},
-    (network_layer_params_t) { 8, 32,        activation_sigmoid}
+  ffn_layer_params_t layerParams[] = {
+    (ffn_layer_params_t) {64, numInputs, activation_sigmoid},
+    (ffn_layer_params_t) {32, 64,        activation_sigmoid},
+    (ffn_layer_params_t) { 8, 32,        activation_sigmoid}
   };
 
   // Create a population of neural networks
@@ -332,17 +340,17 @@ int main( int argc, char *argv[] )
     printf( "Using file %s\n", argv[optind] );
 
     // Add networks to population
-    network_t *tmp = networkLoadFile( argv[optind] );
+    ffn_network_t *tmp = ffnNetworkLoadFile( argv[optind] );
     if( tmp != NULL ) {
       // Only add networks that can successfully mate with the ones we already have
-      if( (networkGetNumInputs( tmp ) == numInputs) &&
-	  (networkGetNumLayers( tmp ) == numLayers) &&
+      if( (ffnNetworkGetNumInputs( tmp ) == numInputs) &&
+	  (ffnNetworkGetNumLayers( tmp ) == numLayers) &&
 	  isNetworkCorrect( tmp, layerParams ) ) {
 	printf( "Adding network\n" );
 	populationReplaceIndividual( population, i++, tmp );
       } else {
 	printf( "Not adding network\n" );
-	networkDestroy( tmp );
+	ffnNetworkDestroy( tmp );
       }
     }
   }
@@ -408,7 +416,7 @@ int main( int argc, char *argv[] )
 	}
 
 	printf( "Saving all networks and quitting\n" );
-	savePopulation( population, -1, generation, runningSeed, numRounds );
+	savePopulation( outputFolder, population, -1, generation, runningSeed, numRounds );
 	return 0;
       }
 
@@ -457,7 +465,7 @@ int main( int argc, char *argv[] )
     printf( "  Best score: %f (%f)\n", bestScore, bestScore / (double)(numRounds) );
 
     // Save the best net here
-    savePopulation( population, bestNet, generation, runningSeed, numRounds );
+    savePopulation( outputFolder, population, bestNet, generation, runningSeed, numRounds );
 
     // Increase how many bits to practice on if network is good enough
     if( (bestScore / (double)(numRounds)) / numBits < bitIncreaseLimit && numBits < maxBits ) {

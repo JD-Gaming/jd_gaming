@@ -9,7 +9,7 @@
 
 population_t *populationCreate( int numIndividuals, 
 				uint64_t numInputs, uint64_t numLayers,
-				network_layer_params_t *layerParams,
+				ffn_layer_params_t *layerParams,
 				bool createNets )
 {
   int i;
@@ -36,20 +36,20 @@ population_t *populationCreate( int numIndividuals,
   // Initialise networks
   if( createNets ) {
     for( i = 0; i < numIndividuals; i++ ) {
-      tmp->elements[i].network = networkCreate( numInputs, numLayers, layerParams, true );
+      tmp->elements[i].network = ffnNetworkCreate( numInputs, numLayers, layerParams, true );
     }
   }
 
   return tmp;
 }
 
-void populationReplaceIndividual( population_t *population, int individual, network_t *network )
+void populationReplaceIndividual( population_t *population, int individual, ffn_network_t *network )
 {
-  networkDestroy( population->elements[individual].network );
+  ffnNetworkDestroy( population->elements[individual].network );
   population->elements[individual].network = network;
 }
 
-network_t *populationGetIndividual( population_t *population, int individual )
+ffn_network_t *populationGetIndividual( population_t *population, int individual )
 {
   return population->elements[individual].network;
 }
@@ -95,10 +95,10 @@ population_t *populationSpawn( population_t *population, bool minimise )
 #if 0
   int i, done;
 
-  network_layer_params_t *layerParams = networkGetLayerParams( population->networks[0] );
+  ffn_layer_params_t *layerParams = ffnNetworkGetLayerParams( population->networks[0] );
   population_t *tmp = populationCreate( population->size,
-					networkGetNumInputs( population->networks[0] ),
-					networkGetNumLayers( population->networks[0] ),
+					ffnNetworkGetNumInputs( population->networks[0] ),
+					ffnNetworkGetNumLayers( population->networks[0] ),
 					layerParams,
 					false );
   free(layerParams);
@@ -137,7 +137,7 @@ population_t *populationSpawn( population_t *population, bool minimise )
   done = 1;
 
   for( ; done < tmp->size; done++ ) {
-    network_t *mom, *dad;
+    ffn_network_t *mom, *dad;
     int momIdx, dadIdx;
 
     if( sumScore ) {
@@ -183,8 +183,8 @@ population_t *populationSpawn( population_t *population, bool minimise )
       dad = population->networks[dadIdx];
     }
 
-    tmp->networks[done] = networkCombine( mom, dad );
-    networkMutate( tmp->networks[done], 0.01 );
+    tmp->networks[done] = ffnNetworkCombine( mom, dad );
+    ffnNetworkMutate( tmp->networks[done], 0.005 );
   }
 
   return tmp;
@@ -228,15 +228,15 @@ void populationRespawn( population_t *population, bool minimise )
       dadIdx = rand() % (numBest + numRandom);
     } while( dadIdx == momIdx );
 
-    network_t *mom = population->elements[momIdx].network;
-    network_t *dad = population->elements[dadIdx].network;
+    ffn_network_t *mom = population->elements[momIdx].network;
+    ffn_network_t *dad = population->elements[dadIdx].network;
 
     // Cleanup
-    networkDestroy( population->elements[done].network );
+    ffnNetworkDestroy( population->elements[done].network );
 
     // Magic happens here
-    population->elements[done].network = networkCombine( mom, dad );
-    networkMutate( population->elements[done].network, 0.01 );
+    population->elements[done].network = ffnNetworkCombine( mom, dad );
+    ffnNetworkMutate( population->elements[done].network, 0.01 );
   }
 }
 
@@ -262,7 +262,7 @@ void populationDestroy( population_t *population )
 {
   int i;
   for( i = 0; i < population->size; i++ ) {
-    networkDestroy( population->elements[i].network );
+    ffnNetworkDestroy( population->elements[i].network );
   }
   free( population->elements );
   free( population );
