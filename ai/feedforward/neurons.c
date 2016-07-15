@@ -154,7 +154,7 @@ float ffnNeuronRun( ffn_neuron_t *neuron, float *inputs )
 
   if( neuron->seed != 0 ) {
     for( i = 0; i < neuron->numConnections; i++ ) {
-      sum += inputs[i] * neuron->weights[neuron->connections[i]];
+      sum += inputs[neuron->connections[i]] * neuron->weights[i];
     }
   } else {
     // No point in going through a connection redirection layer if there's no redirection
