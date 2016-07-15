@@ -10,13 +10,13 @@ int main( int argc, char *argv[] )
     return -1;
   }
 
-  network_t *net = networkLoadFile( argv[1] );
+  ffn_network_t *net = ffnNetworkLoadFile( argv[1] );
   if( net == NULL ) {
     fprintf( stderr, "File is not a neural network definition file: \"%s\".\n", argv[1] );
     return -2;
   }
 
-  networkPrint( net );
+  ffnNetworkPrint( net );
 
   return 0;
 }
