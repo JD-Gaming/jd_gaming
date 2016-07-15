@@ -6,14 +6,23 @@
 
 #include "activation.h"
 
+/*******************************************
+ *             Type definitions            *
+ *******************************************/
 typedef struct ffn_neuron_s ffn_neuron_t;
 
+/*******************************************
+ *        Creation and destruction         *
+ *******************************************/
 // Creates a new neuron
 ffn_neuron_t *ffnNeuronCreate( uint64_t numInputs, activation_type_t activationType, uint64_t numConnections, uint64_t seed, bool initialise );
 
 // Free memory et c.
 void ffnNeuronDestroy( ffn_neuron_t *neuron );
 
+/*******************************************
+ *           Exported functions            *
+ *******************************************/
 // Run a neuron and return its result.
 float ffnNeuronRun( ffn_neuron_t *neuron, float *inputs );
 
@@ -29,7 +38,6 @@ void              ffnNeuronSetWeight(     ffn_neuron_t *neuron, uint64_t source,
 float             ffnNeuronGetWeight(     ffn_neuron_t *neuron, uint64_t source );
 void              ffnNeuronSetActivation( ffn_neuron_t *neuron, activation_type_t activation );
 activation_type_t ffnNeuronGetActivation( ffn_neuron_t *neuron );
-
 uint64_t          ffnNeuronGetConnection( ffn_neuron_t *neuron, uint64_t index );
 
 #endif
