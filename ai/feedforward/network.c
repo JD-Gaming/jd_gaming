@@ -113,7 +113,7 @@ void ffnNetworkDestroy( ffn_network_t *network )
   free( network );
 }
 
-ffn_network_t *ffnNetworkCombine( ffn_network_t *mother, ffn_network_t *father )
+ffn_network_t *ffnNetworkCombineOnWeights( ffn_network_t *mother, ffn_network_t *father )
 {
   assert( mother != NULL );
   assert( father != NULL );
@@ -175,7 +175,65 @@ ffn_network_t *ffnNetworkCombine( ffn_network_t *mother, ffn_network_t *father )
   return tmp;
 }
 
+ffn_network_t *ffnNetworkCombineOnNeurons( ffn_network_t *mother, ffn_network_t *father )
+{
+  assert( mother != NULL );
+  assert( father != NULL );
 
+  uint64_t lay, neur, src;
+
+  // Networks have to have exactly the same structure
+  if( mother->numInputs  != father->numInputs ||
+      mother->numLayers  != father->numLayers ) {
+    return NULL;
+  }
+  for( lay = 0; lay < mother->numLayers; lay++ ) {
+    if( ffnLayerGetNumConnections( mother->layers[lay] ) !=
+	ffnLayerGetNumConnections( father->layers[lay] ) ) {
+      return NULL;
+    }
+  }
+
+  ffn_layer_params_t *layerParams = ffnNetworkGetLayerParams( mother );
+  if( layerParams == NULL ) {
+    return NULL;
+  }
+
+  ffn_network_t *tmp = ffnNetworkCreate( mother->numInputs,
+					 mother->numLayers,
+					 layerParams,
+					 false );
+  free( layerParams );
+  if( tmp == NULL ) {
+    return NULL;
+  }
+
+  for( lay = 0; lay < tmp->numLayers; lay++ ) {
+    for( neur = 0; neur < ffnLayerGetNumNeurons( tmp->layers[lay] ); neur++ ) {
+      ffn_network_t *parent;
+      if( rand() & 1 ) {
+	parent = mother;
+      } else {
+	parent = father;
+      }
+
+      ffnNetworkSetLayerNeuronSeed( tmp, lay, neur,
+				    ffnNetworkGetLayerNeuronSeed( parent, lay, neur ) );
+      ffnNetworkSetLayerNeuronBias( tmp, lay, neur,
+				    ffnNetworkGetLayerNeuronBias( parent, lay, neur ) );
+
+      for( src = 0; src < ffnLayerGetNumConnections( tmp->layers[lay] ); src++ ) {
+	ffnNetworkSetLayerNeuronWeight( tmp, lay, neur, src,
+					ffnNetworkGetLayerNeuronWeight( parent, lay, neur, src ) );
+      }
+
+      ffnNetworkSetLayerNeuronActivation( tmp, lay, neur,
+					  ffnNetworkGetLayerNeuronActivation( parent, lay, neur ) );
+    }
+  }
+
+  return tmp;
+}
 void ffnNetworkMutate( ffn_network_t *network, double mutateRate )
 {
   assert( network != NULL );

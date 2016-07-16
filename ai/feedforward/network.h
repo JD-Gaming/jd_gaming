@@ -60,7 +60,12 @@ ffn_layer_params_t *ffnNetworkGetLayerParams( ffn_network_t *network );
  *               Genetics                  *
  *******************************************/
 // Randomly combine two networks.  Their dimensions must be identical.
-ffn_network_t *ffnNetworkCombine( ffn_network_t *mother, ffn_network_t *father );
+//  Goes through all neurons and selects weights randomly from parents.
+ffn_network_t *ffnNetworkCombineOnWeights( ffn_network_t *mother, ffn_network_t *father );
+
+// Randomly combine two networks.  Their dimensions must be identical.
+//  Goes through all layers and selects neurons randomly from parents.
+ffn_network_t *ffnNetworkCombineOnNeurons( ffn_network_t *mother, ffn_network_t *father );
 
 // Randomly change some weight/bias or connection seed in the network.
 //  <mutateRate> is a value between 0.0 and 1.0, inclusive

@@ -184,7 +184,7 @@ population_t *populationSpawn( population_t *population, bool minimise )
     }
 
     tmp->networks[done] = ffnNetworkCombine( mom, dad );
-    ffnNetworkMutate( tmp->networks[done], 0.005 );
+    ffnNetworkMutateOnNeurons( tmp->networks[done], 0.005 );
   }
 
   return tmp;
@@ -235,8 +235,8 @@ void populationRespawn( population_t *population, bool minimise )
     ffnNetworkDestroy( population->elements[done].network );
 
     // Magic happens here
-    population->elements[done].network = ffnNetworkCombine( mom, dad );
-    ffnNetworkMutate( population->elements[done].network, 0.01 );
+    population->elements[done].network = ffnNetworkCombineOnNeurons( mom, dad );
+    ffnNetworkMutate( population->elements[done].network, 0.005 );
   }
 }
 
