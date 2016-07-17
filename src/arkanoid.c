@@ -37,7 +37,8 @@
 #define BALL_SPEED 5
 #define BALL_START_X ((SCREEN_WIDTH - BALL_SIZE) / 2)
 #define BALL_START_Y (PADDLE_Y_POS - BALL_SIZE)
-#define BALL_START_ANGLE (M_PI/3)
+#define BALL_MIN_ANGLE (M_PI/3.0)
+#define BALL_MAX_ANGLE (2.0*M_PI/3.0)
 
 // Number of points per struck block initially
 #define POINTS_BASE 10
@@ -454,8 +455,9 @@ game_t *createArkanoid(int32_t max_rounds, unsigned int seed)
 	// Set up ball
 	state->ball_pos.x = rand_r( &(state->seed) ) % (SCREEN_WIDTH - PADDLE_MAX_WIDTH);
 	state->ball_pos.y = BALL_START_Y;
-	state->ball_direction.x = (float)cos(BALL_START_ANGLE) * BALL_SPEED;
-	state->ball_direction.y = (float)-sin(BALL_START_ANGLE) * BALL_SPEED;
+	float startAngle = BALL_MIN_ANGLE + (rand_r( &(state->seed) ) / (float)RAND_MAX) * (BALL_MAX_ANGLE - BALL_MIN_ANGLE);
+	state->ball_direction.x = (float)cos(startAngle) * BALL_SPEED;
+	state->ball_direction.y = (float)-sin(startAngle) * BALL_SPEED;
 
 	// Generate blocks
 	state->num_blocks = BLOCK_ROWS * BLOCK_COLS;
