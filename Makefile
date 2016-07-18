@@ -14,8 +14,9 @@ CCFLAGS = -g -Wall -O3 \
 
 LDFLAGS = -L$(LIBDIR) -L. -Lai/feedforward -larkanoid -lffann -lm  -Lai/feedforward/pcg-c-0.94/src -L../ai/feedforward/pcg-c-0.94/src -lpcg_random -lpthread
 ifeq ($(findstring CYGWIN,$(OSNAME)),CYGWIN)
+# Used for this string: "CYGWIN_NT-10.0 DESKTOP-056Q0GE 2.5.2(0.297/5/3) 2016-06-23 14:29 x86_64 Cygwin"
 	LDFLAGS_DRAW += -lcanvas_cyg -lbmp_cyg
-	LDFLAGS += -ljobhandler
+	LDFLAGS += -ljobhandler_cyg
 else ifeq ($(findstring Darwin,$(OSNAME)),Darwin)
 	LDFLAGS_DRAW += ../../libs/canvas/canvas.o
 	LDFLAGS_DRAW += ../../libs/canvas/get_pixels.o
