@@ -25,7 +25,6 @@ testArkanoid.exe
 */
 
 # ... except the important ones
-!ai/
 !libs/
 !include/
 !src/

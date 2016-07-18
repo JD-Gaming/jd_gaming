@@ -10,9 +10,9 @@ else
 endif
 
 CCFLAGS = -g -Wall -O3 \
-	-I$(LIBDIR) -Iinclude -I../include -Iai/feedforward -I../ai/feedforward
+	-I$(LIBDIR) -Iinclude -I../include -Isrc/ai/feedforward -I../src/ai/feedforward
 
-LDFLAGS = -L$(LIBDIR) -L. -Lai/feedforward -larkanoid -lffann -lm  -Lai/feedforward/pcg-c-0.94/src -L../ai/feedforward/pcg-c-0.94/src -lpcg_random -lpthread
+LDFLAGS = -L$(LIBDIR) -L. -Lsrc/ai/feedforward -larkanoid -lffann -lm  -L3pp/pcg-c-0.94/src -L../3pp/pcg-c-0.94/src -lpcg_random -lpthread
 ifeq ($(findstring CYGWIN,$(OSNAME)),CYGWIN)
 # Used for this string: "CYGWIN_NT-10.0 DESKTOP-056Q0GE 2.5.2(0.297/5/3) 2016-06-23 14:29 x86_64 Cygwin"
 	LDFLAGS_DRAW += -lcanvas_cyg -lbmp_cyg
@@ -59,7 +59,7 @@ $(LIBNAME): arkanoid.o geometry.o
 	echo "[AR] $@"
 	ar rcs $@ $^
 
-player.o: src/player.c include/arkanoid.h include/game.h ai/feedforward/network.h src/population.h
+player.o: src/player.c include/arkanoid.h include/game.h src/ai/feedforward/network.h src/population.h
 	echo "[CC] $@"
 	${GCC} $(CCFLAGS) -c $<
 
@@ -67,19 +67,19 @@ testArkanoid.o: src/testArkanoid.c include/arkanoid.h include/game.h
 	echo "[CC] $@"
 	${GCC} $(CCFLAGS) -c $<
 
-addTrainer.o: src/addTrainer.c ai/feedforward/network.h src/population.h
+addTrainer.o: src/addTrainer.c src/ai/feedforward/network.h src/population.h
 	echo "[CC] $@"
 	${GCC} $(CCFLAGS) -c $<
 
-inspectNet.o: src/inspectNet.c ai/feedforward/network.h
+inspectNet.o: src/inspectNet.c src/ai/feedforward/network.h
 	echo "[CC] $@"
 	${GCC} $(CCFLAGS) -c $<
 
-render.o: src/render.c include/arkanoid.h include/game.h ai/feedforward/network.h
+render.o: src/render.c include/arkanoid.h include/game.h src/ai/feedforward/network.h
 	echo "[CC] $@"
 	${GCC} $(CCFLAGS) -c $<
 
-population.o: src/population.c src/population.h ai/feedforward/network.h
+population.o: src/population.c src/population.h src/ai/feedforward/network.h
 	echo "[CC] $@"
 	${GCC} $(CCFLAGS) -c $<
 

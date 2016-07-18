@@ -1,6 +1,7 @@
 #include "activation.h"
 
 #include <math.h>
+#include <stdlib.h>
 
 /*******************************************
  *             Local functions             *

@@ -1,5 +1,5 @@
 GCC=gcc
-LIBDIR=../../libs
+LIBDIR=../../../libs
 LIBNAME=libfeedforward.a
 
 OSNAME:=$(shell uname -s)
@@ -11,7 +11,7 @@ endif
 
 CCFLAGS = -g -Wall \
 	-std=c99 \
-	-Ipcg-c-0.94/include \
+	-I../../../3pp/pcg-c-0.94/include \
 	-I$(LIBDIR) -Iinclude
 
 LDFLAGS = -L$(LIBDIR) -L.
@@ -28,7 +28,7 @@ else ifeq ($(findstring Darwin,$(OSNAME)),Darwin)
 else
 	LDFLAGS += -lcanvas -lbmp
 endif
-LDFLAGS += -lffann -ljpeg -lm -lz -lpthread -Lpcg-c-0.94/src -lpcg_random
+LDFLAGS += -lffann -ljpeg -lm -lz -lpthread -L../../../3pp/pcg-c-0.94/src -lpcg_random
 
 all: feedforward$(EXT)
 
