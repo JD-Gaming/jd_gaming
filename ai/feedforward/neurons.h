@@ -2,22 +2,42 @@
 #define NEURONS_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
-typedef struct neuron_s neuron_t;
+#include "activation.h"
 
-typedef struct neuron_s {
-  // Calculates the next value using synapses et c, inputs must be the same size as num_synapses
-  float (*calc) ( neuron_t *neuron, neuron_t **inputs );
-  // The bias value of the neuron, duh
-  float bias;
-  // The array of synapses
-  uint32_t num_synapses;
-  float *synapses;
-  // The last calculated value
-  float value;
-} neuron_t;
+/*******************************************
+ *             Type definitions            *
+ *******************************************/
+typedef struct ffn_neuron_s ffn_neuron_t;
 
-// Creates a new neuron.  <bias> and <synapses> are optional arguments that can be used to initialise a previously trained neuron.
-neuron_t *createSigmoid( uint32_t num_synapses, float *bias, float *synapses );
+/*******************************************
+ *        Creation and destruction         *
+ *******************************************/
+// Creates a new neuron
+ffn_neuron_t *ffnNeuronCreate( uint64_t numInputs, activation_type_t activationType, uint64_t numConnections, uint64_t seed, bool initialise );
+
+// Free memory et c.
+void ffnNeuronDestroy( ffn_neuron_t *neuron );
+
+/*******************************************
+ *           Exported functions            *
+ *******************************************/
+// Run a neuron and return its result.
+float ffnNeuronRun( ffn_neuron_t *neuron, float *inputs );
+
+// Perform random mutations in the neuron.
+void ffnNeuronMutate( ffn_neuron_t *neuron, double mutateRate, uint32_t allowedActivations );
+
+// Neuron manipulation functions
+void              ffnNeuronSetSeed(       ffn_neuron_t *neuron, uint64_t seed );
+uint64_t          ffnNeuronGetSeed(       ffn_neuron_t *neuron );
+void              ffnNeuronSetBias(       ffn_neuron_t *neuron, float bias );
+float             ffnNeuronGetBias(       ffn_neuron_t *neuron );
+void              ffnNeuronSetWeight(     ffn_neuron_t *neuron, uint64_t source, float weight );
+float             ffnNeuronGetWeight(     ffn_neuron_t *neuron, uint64_t source );
+void              ffnNeuronSetActivation( ffn_neuron_t *neuron, activation_type_t activation );
+activation_type_t ffnNeuronGetActivation( ffn_neuron_t *neuron );
+uint64_t          ffnNeuronGetConnection( ffn_neuron_t *neuron, uint64_t index );
 
 #endif

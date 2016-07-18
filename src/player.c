@@ -22,7 +22,7 @@
 
 typedef struct neuron_job_s {
   // Network to run
-  network_t    *network;
+  ffn_network_t    *network;
   // Number of game rounds to play
   unsigned int  numRounds;
   // Number of game frames to send to network
@@ -54,14 +54,15 @@ static pthread_mutex_t net_mutex;
 static const struct option *getOptlist()
 {
   static struct option optlist[] = {
-    {"tasks",       required_argument, NULL, 't'},
-    {"seed",        required_argument, NULL, 's'},
-    {"generations", required_argument, NULL, 'g'},
-    {"first-gen",   required_argument, NULL, 'f'},
-    {"networks",    required_argument, NULL, 'n'},
-    {"rounds",      required_argument, NULL, 'r'},
+    {"tasks",         required_argument, NULL, 't'},
+    {"seed",          required_argument, NULL, 's'},
+    {"generations",   required_argument, NULL, 'g'},
+    {"first-gen",     required_argument, NULL, 'f'},
+    {"networks",      required_argument, NULL, 'n'},
+    {"rounds",        required_argument, NULL, 'r'},
+    {"output-folder", required_argument, NULL, 'o'},
 
-    {"help",        no_argument,       NULL, 'h'},
+    {"help",          no_argument,       NULL, 'h'},
     {0, 0, 0, 0}
   };
 
@@ -101,14 +102,14 @@ static void usage( char *progname )
   printf( "  -h, --help                 display this message and exit\n" );
 }
 
-static bool isNetworkCorrect( network_t *net, network_layer_params_t *lp )
+static bool isNetworkCorrect( ffn_network_t *net, ffn_layer_params_t *lp )
 {
   int i;
-  for( i = 0; i < networkGetNumLayers( net ); i++ ) {
-    if( networkGetLayerNumNeurons( net, i ) != lp[i].numNeurons )
+  for( i = 0; i < ffnNetworkGetNumLayers( net ); i++ ) {
+    if( ffnNetworkGetLayerNumNeurons( net, i ) != lp[i].numNeurons )
       return false;
 
-    if( networkGetLayerNumConnections( net, i ) != lp[i].numConnections )
+    if( ffnNetworkGetLayerNumConnections( net, i ) != lp[i].numConnections )
       return false;
   }
 
@@ -116,25 +117,27 @@ static bool isNetworkCorrect( network_t *net, network_layer_params_t *lp )
 }
 
 // individual == -1 means save all, otherwise save only specified individual
-static void savePopulation( population_t *population, int individual, unsigned int generation, unsigned int seed, unsigned int rounds )
+static void savePopulation( char *folder, population_t *population, int individual, unsigned int generation, unsigned int seed, unsigned int rounds )
 {
-#define SAVE_NET_FORMAT "brains/0x%08x_0x%08x_%d_%f.ffw"
+#define SAVE_NET_FORMAT "%s/0x%08x_0x%08x_%d_%f.ffw"
   char filename[FILENAME_LEN];
   if( individual == -1 ) {
     int i;
     for( i = 0; i < population->size; i++ ) {
       sprintf( filename, SAVE_NET_FORMAT,
+	       folder,
 	       generation, seed, i, populationGetScore( population, i ) / rounds );
-      networkSaveFile( populationGetIndividual( population, i ), filename );
+      ffnNetworkSaveFile( populationGetIndividual( population, i ), filename );
     }
   } else {
     sprintf( filename, SAVE_NET_FORMAT,
+	     folder,
 	     generation, seed, individual, populationGetScore( population, individual ) / rounds );
-    networkSaveFile( populationGetIndividual( population, individual ), filename );
+    ffnNetworkSaveFile( populationGetIndividual( population, individual ), filename );
   }
 }
 
-static double playNetwork( network_t *network,
+static double playNetwork( ffn_network_t *network,
 			   uint64_t numFrames,  uint64_t numInputs,
 			   unsigned int generation, unsigned int seed,
 			   unsigned int numRounds, uint64_t numRandom,
@@ -182,9 +185,9 @@ static double playNetwork( network_t *network,
       memcpy( &ffwData[numRandom + i * size], game->sensors[0].data, size );
 
       // Add AI here
-      networkRun( network, ffwData );
+      ffnNetworkRun( network, ffwData );
 
-      float tmpOutput = networkGetOutputValue( network, 0 );
+      float tmpOutput = ffnNetworkGetOutputValue( network, 0 );
       if( tmpOutput > 0 ) {
 	inputs.left  = tmpOutput;
 	inputs.right = 0;
@@ -241,6 +244,8 @@ static void *train_thread( void *arg )
 
 int main( int argc, char *argv[] )
 {
+  // Place to store network definitions
+  char *outputFolder = ".";
   // Get some better randomness going
   srand((unsigned)(time(NULL)));
   unsigned long runningSeed = rand();
@@ -259,7 +264,7 @@ int main( int argc, char *argv[] )
   signal( SIGINT, sigintHandler );
 
   int c;
-  while( (c = getopt_long (argc, argv, "s:t:g:f:n:r:h",
+  while( (c = getopt_long (argc, argv, "s:t:g:f:n:r:o:h",
 			   getOptlist(), NULL)) != -1 ) {
     switch(c) {
     case 's': // Optional
@@ -279,6 +284,9 @@ int main( int argc, char *argv[] )
       break;
     case 'r': // Optional
       numRounds = strtoul(optarg, NULL, 10);
+      break;
+    case 'o': // Optional
+      outputFolder = optarg;
       break;
     case 'h': // Special
       usage( argv[0] );
@@ -302,11 +310,11 @@ int main( int argc, char *argv[] )
   // Number of layers, including output layer, used by the networks
   const uint64_t numLayers = 4;
   // Description of the layers
-  network_layer_params_t layerParams[] = {
-    (network_layer_params_t) {400, numInputs * 0.05, activation_any},
-    (network_layer_params_t) {200,               50, activation_any},
-    (network_layer_params_t) { 25,              100, activation_any},
-    (network_layer_params_t) {  1,               25, activation_sigmoid },
+  ffn_layer_params_t layerParams[] = {
+    (ffn_layer_params_t) {400, numInputs * 0.05, activation_any},
+    (ffn_layer_params_t) {200,               50, activation_any},
+    (ffn_layer_params_t) { 25,              100, activation_any},
+    (ffn_layer_params_t) {  1,               25, activation_tanh },
   };
   // Destroy the temporary game
   destroyArkanoid( game );
@@ -355,17 +363,17 @@ int main( int argc, char *argv[] )
     printf( "Using file %s\n", argv[optind] );
 
     // Add networks to population
-    network_t *tmp = networkLoadFile( argv[optind] );
+    ffn_network_t *tmp = ffnNetworkLoadFile( argv[optind] );
     if( tmp != NULL ) {
       // Only add networks that can successfully mate with the ones we already have
-      if( (networkGetNumInputs( tmp ) == numInputs) &&
-	  (networkGetNumLayers( tmp ) == numLayers) &&
+      if( (ffnNetworkGetNumInputs( tmp ) == numInputs) &&
+	  (ffnNetworkGetNumLayers( tmp ) == numLayers) &&
 	  isNetworkCorrect( tmp, layerParams ) ) {
 	printf( "Adding network\n" );
 	populationReplaceIndividual( population, i++, tmp );
       } else {
 	printf( "Not adding network\n" );
-	networkDestroy( tmp );
+	ffnNetworkDestroy( tmp );
       }
     }
   }
@@ -433,7 +441,7 @@ int main( int argc, char *argv[] )
 	}
 
 	printf( "Saving all networks and quitting\n" );
-	savePopulation( population, -1, generation, runningSeed, numRounds );
+	savePopulation( outputFolder, population, -1, generation, runningSeed, numRounds );
 
 	free( threadJobs );
 	free( threads );
@@ -486,7 +494,7 @@ int main( int argc, char *argv[] )
     printf( "  Best score: %f (%f)\n", bestScore, bestScore / (double)(numRounds) );
 
     // Save the best net here
-    savePopulation( population, bestNet, generation, runningSeed, numRounds );
+    savePopulation( outputFolder, population, bestNet, generation, runningSeed, numRounds );
 
     populationRespawn( population, minimise );
   }

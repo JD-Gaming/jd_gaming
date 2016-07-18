@@ -54,13 +54,13 @@ int main( int argc, char *argv[] )
   char imageFilename[FILENAME_LEN];
 
   // Create neural network
-  network_t *net = networkLoadFile( networkFilename );
+  ffn_network_t *net = ffnNetworkLoadFile( networkFilename );
   if( net == NULL ) {
     fprintf( stderr, "Unable to load neural network\n" );
     return -1;
   }
 
-  uint64_t numInputs = networkGetNumInputs( net );
+  uint64_t numInputs = ffnNetworkGetNumInputs( net );
   uint64_t numRandom = numInputs - 2 * game->sensors[0].width * game->sensors[0].height;
 
   float *ffwData = malloc( sizeof(float) * numInputs );
@@ -100,16 +100,16 @@ int main( int argc, char *argv[] )
     }
 
     // Add AI here
-    networkRun( net, ffwData );
+    ffnNetworkRun( net, ffwData );
 
-    inputs.up         = networkGetOutputValue( net, 0 );
-    inputs.down       = networkGetOutputValue( net, 1 );
-    inputs.left       = networkGetOutputValue( net, 2 );
-    inputs.right      = networkGetOutputValue( net, 3 );
-    inputs.actions[0] = networkGetOutputValue( net, 4 );
-    inputs.actions[1] = networkGetOutputValue( net, 5 );
-    inputs.actions[2] = networkGetOutputValue( net, 6 );
-    inputs.actions[3] = networkGetOutputValue( net, 7 );
+    inputs.up         = ffnNetworkGetOutputValue( net, 0 );
+    inputs.down       = ffnNetworkGetOutputValue( net, 1 );
+    inputs.left       = ffnNetworkGetOutputValue( net, 2 );
+    inputs.right      = ffnNetworkGetOutputValue( net, 3 );
+    inputs.actions[0] = ffnNetworkGetOutputValue( net, 4 );
+    inputs.actions[1] = ffnNetworkGetOutputValue( net, 5 );
+    inputs.actions[2] = ffnNetworkGetOutputValue( net, 6 );
+    inputs.actions[3] = ffnNetworkGetOutputValue( net, 7 );
 
 
     // Send input to game

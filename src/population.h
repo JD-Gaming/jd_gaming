@@ -6,8 +6,8 @@
 #include "network.h"
 
 typedef struct population_element_s {
-  network_t *network;
-  double     score;
+  ffn_network_t *network;
+  double         score;
 } population_element_t;
 
 typedef struct population_s {
@@ -19,14 +19,14 @@ typedef struct population_s {
 // Create an entirely new population of networks,
 population_t *populationCreate( int numIndividuals,
 				uint64_t numInputs, uint64_t numLayers,
-				network_layer_params_t *layerParams,
+				ffn_layer_params_t *layerParams,
 				bool createNets );
 
 // Replace a network, assume it's has the same characteristics as the others
-void populationReplaceIndividual( population_t *population, int individual, network_t *network );
+void populationReplaceIndividual( population_t *population, int individual, ffn_network_t *network );
 
 // Returns a reference to a network.
-network_t *populationGetIndividual( population_t *population, int individual );
+ffn_network_t *populationGetIndividual( population_t *population, int individual );
 
 // Spawn a new population from the best individuals of the last one.
 population_t *populationSpawn( population_t *population, bool minimise );
