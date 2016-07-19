@@ -1,5 +1,4 @@
-//#include "ai/feedforward/ffn.h"
-#include "network.h"
+#include "ai/feedforward/ffn.h"
 
 #include <stdio.h>
 #include <stdint.h>

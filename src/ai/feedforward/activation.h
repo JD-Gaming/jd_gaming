@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#include "network.h"
+#include "ai/feedforward/ffn.h"
 
 typedef float (*act_func) ( float val );
 

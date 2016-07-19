@@ -1,5 +1,6 @@
 BASEDIR:=../../..
 MODULEDIR:=$(CURDIR)
+INCLUDEDIR:=$(BASEDIR)/include
 LIBDIR:=$(BASEDIR)/libs
 3PPDIR:=$(BASEDIR)/3pp
 
@@ -15,7 +16,7 @@ endif
 CCFLAGS = -g -Wall \
 	-std=c99 \
 	-I$(3PPDIR)/pcg-c-0.94/include \
-	-I$(LIBDIR) -Iinclude
+	-I$(LIBDIR) -I$(INCLUDEDIR) -Iinclude
 
 LDFLAGS = -L$(LIBDIR) -L.
 LDFLAGS += -lffann -lm -lpthread -L$(3PPDIR)/pcg-c-0.94/src -lpcg_random
