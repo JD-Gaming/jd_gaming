@@ -1,6 +1,9 @@
+BASEDIR:=../../..
+MODULEDIR:=$(CURDIR)
+LIBDIR:=$(BASEDIR)/libs
+3PPDIR:=$(BASEDIR)/3pp
+
 GCC=gcc
-LIBDIR=../../../libs
-LIBNAME=libfeedforward.a
 
 OSNAME:=$(shell uname -s)
 ifeq ($(findstring CYGWIN,$(OSNAME)),CYGWIN)
@@ -11,57 +14,53 @@ endif
 
 CCFLAGS = -g -Wall \
 	-std=c99 \
-	-I../../../3pp/pcg-c-0.94/include \
+	-I$(3PPDIR)/pcg-c-0.94/include \
 	-I$(LIBDIR) -Iinclude
 
 LDFLAGS = -L$(LIBDIR) -L.
-ifeq ($(findstring CYGWIN,$(OSNAME)),CYGWIN)
-	LDFLAGS += -lcanvas_cyg -lbmp_cyg
-else ifeq ($(findstring Darwin,$(OSNAME)),Darwin)
-	LDFLAGS += ../../../../libs/canvas/canvas.o
-	LDFLAGS += ../../../../libs/canvas/get_pixels.o
-	LDFLAGS += ../../../../libs/canvas/set_pixels.o
-	LDFLAGS += ../../../../libs/canvas/jpeg.o
-	LDFLAGS += ../../../../libs/canvas/bmp.o
-	LDFLAGS += ../../../../libs/canvas/pnm.o
-	LDFLAGS += ../../../../libs/bmp/bmp.o
-else
-	LDFLAGS += -lcanvas -lbmp
-endif
-LDFLAGS += -lffann -ljpeg -lm -lz -lpthread -L../../../3pp/pcg-c-0.94/src -lpcg_random
+LDFLAGS += -lffann -lm -lpthread -L$(3PPDIR)/pcg-c-0.94/src -lpcg_random
+
+LIBNAME=libfeedforward.a
+
+LIBBASEOBJS = activation.o neurons.o layer.o network.o
+BASEOBJS = $(LIBBASEOBJS) main.o
+OBJS = $(patsubst %.o,objs/%.o,$(BASEOBJS))
+LIBOBJS = $(patsubst %.o,objs/%.o,$(LIBBASEOBJS))
 
 all: feedforward$(EXT)
 
-feedforward$(EXT): libffann.a main.o
-	echo "[LD] $@"
+feedforward$(EXT): $(OBJS) $(LIBNAME)
+	@echo "[LD] $@"
 	${GCC} $(CCFLAGS) $^ $(LDFLAGS) -o $@
 
-libffann.a: network.o layer.o neurons.o activation.o
+$(LIBNAME): $(LIBOBJS)
 	echo "[AR] $@"
 	ar rcs $@ $^
 
-main.o: main.c neurons.h network.h
-	echo "[CC] $@"
-	${GCC} $(CCFLAGS) -c $<
+-include $(OBJS:.o=.d)
 
-activation.o: activation.c activation.h
+# compile and generate dependency info;
+# more complicated dependency computation, so all prereqs listed
+# will also become command-less, prereq-less targets
+#   sed:    strip the target (everything before colon)
+#   sed:    remove any continuation backslashes
+#   fmt -1: list words one per line
+#   sed:    strip leading spaces
+#   sed:    add trailing colons
+objs/%.o: %.c
 	echo "[CC] $@"
-	${GCC} $(CCFLAGS) -c $<
-
-neurons.o: neurons.c neurons.h activation.h
-	echo "[CC] $@"
-	${GCC} $(CCFLAGS) -c $<
-
-layer.o: layer.c layer.h neurons.h activation.h
-	echo "[CC] $@"
-	${GCC} $(CCFLAGS) -c $<
-
-network.o: network.c network.h neurons.h activation.h
-	echo "[CC] $@"
-	${GCC} $(CCFLAGS) -c $<
+	mkdir -p $(MODULEDIR)/objs/
+	$(GCC) -c $(CCFLAGS) $*.c -o $@
+	$(GCC) -MM $(CCFLAGS) $*.c > objs/$*.d
+	mv -f objs/$*.d objs/$*.d.tmp
+	sed -e 's|.*:|$@:|' < objs/$*.d.tmp > objs/$*.d
+	cp -f objs/$*.d objs/$*.d.tmp
+	sed -e 's/.*://' -e 's/\\$$//' < objs/$*.d.tmp | fmt -1 | \
+	  sed -e 's/^ *//' -e 's/$$/:/' >> objs/$*.d
+	rm -f objs/$*.d.tmp
 
 clean:
 	echo "[RM] $^"
-	-rm *.o feedforward${EXT}
+	-rm objs/*.o objs/*.d feedforward${EXT}
 
 .SILENT:

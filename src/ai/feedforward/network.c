@@ -1,3 +1,4 @@
+//#include "ai/feedforward/ffn.h"
 #include "network.h"
 
 #include <stdio.h>
@@ -5,7 +6,7 @@
 #include <math.h>
 #include <assert.h>
 
-
+#include "layer.h"
 #include "activation.h"
 
 /*******************************************

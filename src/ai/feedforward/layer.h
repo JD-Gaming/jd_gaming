@@ -13,14 +13,6 @@
  *******************************************/
 typedef struct ffn_layer_s ffn_layer_t;
 
-typedef struct ffn_layer_params_s {
-  uint64_t numNeurons;
-  uint64_t numConnections;
-  // A bit mask of the allowed activation functions used for
-  //  initialisation and mutations.
-  uint32_t allowedActivations;
-} ffn_layer_params_t;
-
 /*******************************************
  *        Creation and destruction         *
  *******************************************/
