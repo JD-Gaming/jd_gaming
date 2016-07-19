@@ -21,7 +21,7 @@ CCFLAGS = -g -Wall \
 LDFLAGS = -L$(LIBDIR) -L.
 LDFLAGS += -lffann -lm -lpthread -L$(3PPDIR)/pcg-c-0.94/src -lpcg_random
 
-LIBNAME=libfeedforward.a
+LIBNAME=$(LIBDIR)/libffann.a
 
 LIBBASEOBJS = activation.o neurons.o layer.o network.o
 BASEOBJS = $(LIBBASEOBJS) main.o

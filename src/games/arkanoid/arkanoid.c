@@ -10,6 +10,9 @@
 
 #include "geometry.h"
 
+#ifndef M_PI
+#  define M_PI 3.14159265359
+#endif
 #define SQRT_2_HALF 0.70710678118
 
 #define SCREEN_WIDTH 640
