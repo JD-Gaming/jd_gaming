@@ -7,7 +7,7 @@ windows/Player/Debug/
 # Build artefacts
 *.o
 *.a
-*.*~
+*~
 
 # Ignore known executables
 game
