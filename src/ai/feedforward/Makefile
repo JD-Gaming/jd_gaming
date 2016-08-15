@@ -30,6 +30,8 @@ LIBOBJS = $(patsubst %.o,objs/%.o,$(LIBBASEOBJS))
 
 all: feedforward$(EXT)
 
+lib:	$(LIBNAME)
+
 feedforward$(EXT): $(OBJS) $(LIBNAME)
 	@echo "[LD] $@"
 	${GCC} $(CCFLAGS) $^ $(LDFLAGS) -o $@
