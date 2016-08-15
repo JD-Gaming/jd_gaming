@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#include "network.h"
+#include "ai/feedforward/ffn.h"
 
 typedef struct population_element_s {
   ffn_network_t *network;

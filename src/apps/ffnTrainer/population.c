@@ -5,7 +5,7 @@
 #include <strings.h>
 #include <stdbool.h>
 
-#include "network.h"
+#include "ai/feedforward/ffn.h"
 
 population_t *populationCreate( int numIndividuals, 
 				uint64_t numInputs, uint64_t numLayers,
