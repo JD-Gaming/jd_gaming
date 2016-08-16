@@ -1,4 +1,4 @@
-#include "arkanoid.h"
+#include "games/arkanoid/arkanoid.h"
 
 #include <stdio.h>
 #include <stdint.h>
@@ -8,7 +8,7 @@
 #define _USE_MATH_DEFINES
 #include <math.h>
 
-#include "geometry.h"
+#include "games/arkanoid/geometry.h"
 
 #ifndef M_PI
 #  define M_PI 3.14159265359

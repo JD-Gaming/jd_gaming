@@ -24,15 +24,15 @@ LDFLAGS += -lffann -lm -lpthread -L$(3PPDIR)/pcg-c-0.94/src -lpcg_random
 LIBNAME=$(LIBDIR)/libffann.a
 
 LIBBASEOBJS = activation.o neurons.o layer.o network.o
-BASEOBJS = $(LIBBASEOBJS) main.o
-OBJS = $(patsubst %.o,objs/%.o,$(BASEOBJS))
+TESTBASEOBJS = main.o
+TESTOBJS = $(patsubst %.o,objs/%.o,$(TESTBASEOBJS))
 LIBOBJS = $(patsubst %.o,objs/%.o,$(LIBBASEOBJS))
 
 all: feedforward$(EXT)
 
 lib:	$(LIBNAME)
 
-feedforward$(EXT): $(OBJS) $(LIBNAME)
+feedforward$(EXT): $(TESTOBJS) $(LIBNAME)
 	@echo "[LD] $@"
 	${GCC} $(CCFLAGS) $^ $(LDFLAGS) -o $@
 
@@ -40,7 +40,8 @@ $(LIBNAME): $(LIBOBJS)
 	echo "[AR] $@"
 	ar rcs $@ $^
 
--include $(OBJS:.o=.d)
+-include $(LIBOBJS:.o=.d)
+-include $(TESTOBJS:.o=.d)
 
 # compile and generate dependency info;
 # more complicated dependency computation, so all prereqs listed

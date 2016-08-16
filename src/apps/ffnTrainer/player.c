@@ -12,7 +12,7 @@
 #include <signal.h>
 #include <pthread.h>
 
-#include "arkanoid.h"
+#include "games/arkanoid/arkanoid.h"
 #include "ai/feedforward/ffn.h"
 #include "population.h"
 #include "jobhandler.h"

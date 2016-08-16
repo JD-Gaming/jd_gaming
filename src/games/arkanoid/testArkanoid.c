@@ -1,7 +1,7 @@
 #include <stdio.h>
 
-#include "game.h"
-#include "arkanoid.h"
+#include "games/game.h"
+#include "games/arkanoid/arkanoid.h"
 
 int main( void )
 {

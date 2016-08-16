@@ -1,4 +1,4 @@
-#include "geometry.h"
+#include "games/arkanoid/geometry.h"
 
 #include <stdbool.h>
 

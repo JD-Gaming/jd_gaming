@@ -31,7 +31,7 @@ LDFLAGS += -lffann -lm -lpthread -lpcg_random -larkanoid
 
 LIBBASEOBJS = arkanoid.o geometry.o
 LIBOBJS = $(patsubst %.o,objs/%.o,$(LIBBASEOBJS))
-
+TESTBASEOBJS = player.o addTrainer.o inspectNet.o
 TESTOBJS = $(patsubst %.o,objs/%.o,$(TESTBASEOBJS))
 
 app: player$(EXT)
@@ -46,14 +46,15 @@ addTrainer$(EXT): objs/addTrainer.o $(LIBDIR)/libffann.a objs/population.o
 	@echo "[LD] $@"
 	${GCC} $(CCFLAGS) $^ $(LDFLAGS) -o $@
 
-inspectNet$(EXT): $(TESTOBJS) $(LIBNAME)
+inspectNet$(EXT): objs/inspectNet.o $(LIBNAME)
 	@echo "[LD] $@"
 	${GCC} $(CCFLAGS) $^ $(LDFLAGS) -o $@
 
 $(LIBDIR)/libffann.a:
 	make -C $(BASEDIR)/src/ai/feedforward libffann.a
 
--include $(OBJS:.o=.d)
+-include $(LIBOBJS:.o=.d)
+-include $(TESTOBJS:.o=.d)
 
 # compile and generate dependency info;
 # more complicated dependency computation, so all prereqs listed
@@ -79,4 +80,4 @@ clean:
 	echo "[RM] $^"
 	-rm objs/*.o objs/*.d $(LIBNAME)
 
-#.SILENT:
+.SILENT:

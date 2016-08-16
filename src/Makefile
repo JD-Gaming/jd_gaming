@@ -1,4 +1,4 @@
-dirs := $(shell find . -maxdepth 1 -type d -a -not -wholename "\.")
+dirs := games ai apps
 
 all:	build
 

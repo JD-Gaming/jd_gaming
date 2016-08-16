@@ -1,7 +1,7 @@
 #ifndef MY_GAME_H
 #define MY_GAME_H
 
-#include "game.h"
+#include "games/game.h"
 
 #include <stdint.h>
 
